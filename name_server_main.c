@@ -1,4 +1,8 @@
 #include "name_server.h"
+#include <signal.h>
+
+// Global name server for signal handling
+extern NameServer* g_nm;
 
 // Thread argument structure
 typedef struct {
@@ -17,7 +21,6 @@ void* handle_connection(void* arg) {
     
     char client_ip[MAX_IP_LEN];
     inet_ntop(AF_INET, &addr.sin_addr, client_ip, MAX_IP_LEN);
-    int client_port = ntohs(addr.sin_port);
     
     free(conn_args);
     
@@ -331,7 +334,7 @@ void start_name_server(NameServer* nm) {
 
 // ==================== SIGNAL HANDLER ====================
 
-void signal_handler(int signum) {
+void signal_handler(int signum __attribute__((unused))) {
     if (g_nm) {
         printf("\nShutting down Name Server...\n");
         g_nm->is_running = false;

@@ -1,0 +1,6 @@
+[2025-11-01 16:51:11] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-01 16:51:24] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-01 16:51:47] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_REGISTER Details=Client_ID=1 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-01 16:52:05] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-a
+[2025-11-01 16:52:17] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-01 16:52:25] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_DISCONNECT Details=Client_ID=1
