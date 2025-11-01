@@ -1,0 +1,4 @@
+[2025-11-01 18:05:59] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-01 18:05:59] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-01 18:05:59] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-01 18:06:45] [INFO] Op=CREATE Details=File=new

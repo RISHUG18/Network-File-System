@@ -1,6 +1,24 @@
-[2025-11-01 16:51:11] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
-[2025-11-01 16:51:24] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
-[2025-11-01 16:51:47] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_REGISTER Details=Client_ID=1 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
-[2025-11-01 16:52:05] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-a
-[2025-11-01 16:52:17] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0
-[2025-11-01 16:52:25] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_DISCONNECT Details=Client_ID=1
+[2025-11-01 18:05:57] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-01 18:05:59] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=0
+[2025-11-01 18:06:20] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-01 18:06:34] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_REGISTER Details=Client_ID=1 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-01 18:06:36] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=VIEW Details=default
+[2025-11-01 18:06:38] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=VIEW Details=-a
+[2025-11-01 18:06:41] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=VIEW Details=-la
+[2025-11-01 18:06:45] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CREATE Details=File=new SS_ID=0
+[2025-11-01 18:06:48] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=VIEW Details=default
+[2025-11-01 18:06:52] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=VIEW Details=-la
+[2025-11-01 18:06:54] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=VIEW Details=-l
+[2025-11-01 18:06:57] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=default
+[2025-11-01 18:06:59] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-la
+[2025-11-01 18:07:01] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-a
+[2025-11-01 18:07:08] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-l
+[2025-11-01 18:07:35] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=WRITE Details=File=new Sentence=0 SS_ID=0
+[2025-11-01 18:08:06] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=READ Details=File=new SS_ID=0
+[2025-11-01 18:08:23] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_DISCONNECT Details=Client_ID=1
+[2025-11-01 18:08:26] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_REGISTER Details=Client_ID=2 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-01 18:08:30] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=READ Details=File=new SS_ID=0
+[2025-11-01 18:08:32] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_DISCONNECT Details=Client_ID=2
+[2025-11-01 18:08:33] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=CLIENT_REGISTER Details=Client_ID=3 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-01 18:08:49] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=WRITE Details=File=new Sentence=0 SS_ID=0
+[2025-11-01 18:09:02] [INFO] IP=127.0.0.1 Port=7001 User=bob Op=WRITE Details=File=new Sentence=1 SS_ID=0

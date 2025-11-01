@@ -24,40 +24,68 @@ The central coordinator of the system is fully implemented with all required fea
 - **Thread Safety**: Mutex-based concurrency control
 - **Protocol**: Well-defined text-based protocol for SS and Client communication
 
+#### Storage Server (Complete)
+Handles actual file storage and client operations:
+
+- **Concurrent File Access**: Reader-writer locks + sentence-level locking
+- **Sentence Parsing**: Automatic parsing with `.!?` delimiters
+- **Undo Mechanism**: 100-entry circular buffer with full file snapshots
+- **Data Persistence**: Files stored in `./storage/` with auto-save
+- **Streaming**: Word-by-word transmission with 0.1s delay
+- **Write Operations**: Word-level updates with sentence re-parsing
+- **Thread Safety**: RW locks for files, mutexes for sentences
+- **Client Direct Connection**: Handles READ, WRITE, STREAM directly
+- **NM Communication**: CREATE, DELETE, INFO, UNDO via NM
+
 ### 🚧 Pending Components
 
-- **Storage Server**: File storage, persistence, undo history, sentence locking
-- **Client**: Full user interface with direct SS connectivity for READ/WRITE/STREAM
-- **Integration**: End-to-end testing of complete system
+- **Full Client Implementation**: Complete CLI client with all operations and direct SS connectivity
+- **Advanced Features**: Multi-server replication, load balancing, compression
 
 ## Quick Start
 
-### Build Name Server
+### Build Both Servers
 ```bash
 make
 ```
 
-### Run Name Server
+### Terminal 1: Start Name Server
 ```bash
 ./name_server 8080
 ```
 
-### Test with Python Client
+### Terminal 2: Start Storage Server
 ```bash
-python3 test_client.py <username>
+./storage_server 127.0.0.1 8080 9002
+```
+
+### Terminal 3: Test with Python Client
+```bash
+python3 test_client.py alice
+```
+
+### Or Run Integration Test
+```bash
+./test_integration.sh
 ```
 
 ## Project Structure
 
 ```
 .
-├── name_server.h           - Header with data structures and declarations
-├── name_server.c           - Core NM functionality (trie, cache, registration)
-├── name_server_ops.c       - File operations and access control handlers
-├── name_server_main.c      - Connection handling and main loop
-├── Makefile                - Build system
+├── name_server.h           - NM data structures and declarations
+├── name_server.c           - NM core (trie, cache, registration)
+├── name_server_ops.c       - NM file operations and access control
+├── name_server_main.c      - NM connection handling and main loop
+├── storage_server.h        - SS data structures and declarations
+├── storage_server.c        - SS core (parsing, persistence, undo)
+├── storage_server_ops.c    - SS file operations and locking
+├── storage_server_main.c   - SS networking and client handling
+├── Makefile                - Build system for both servers
 ├── test_client.py          - Python test client for NM
+├── test_integration.sh     - Full system integration test
 ├── NAME_SERVER_README.md   - Detailed NM documentation
+├── STORAGE_SERVER_README.md- Detailed SS documentation
 ├── PROTOCOL.md             - Communication protocol specification
 ├── TESTING.md              - Comprehensive testing guide
 └── README.md               - This file
@@ -122,15 +150,49 @@ python3 test_client.py <username>
 - ✅ [5] Access Control: ACL-based permissions
 - ✅ [5] Logging: Comprehensive with timestamps, IPs, usernames
 - ✅ [5] Error Handling: 11 error codes, clear messages
-- ⏳ [10] Data Persistence: (to be implemented in SS)
-- ⏳ [5] Concurrent Access: (full implementation needs SS)
+- ✅ [10] Data Persistence: Files in ./storage/, auto-save on write
+- ✅ [5] Concurrent Access: RW locks + sentence-level mutexes
 
-### Storage Server Features [Pending]
-- File storage and retrieval
-- Undo history (stack-based)
-- Sentence-level locking for WRITE
-- Data persistence
-- Client direct connection handling
+## Concurrency Implementation
+
+### Name Server Concurrency
+- **Trie Lock**: `pthread_mutex_t` for file metadata operations
+- **SS Lock**: `pthread_mutex_t` for storage server registry
+- **Client Lock**: `pthread_mutex_t` for client registry
+- **Log Lock**: `pthread_mutex_t` for thread-safe logging
+- **Cache Lock**: `pthread_mutex_t` for LRU cache operations
+- **Thread-per-connection**: Each client/SS connection handled in separate thread
+
+### Storage Server Concurrency
+- **File RW Lock**: `pthread_rwlock_t` per file
+  - Multiple readers simultaneously
+  - Exclusive writer access
+  - Prevents race conditions during reads/writes
+- **Sentence Mutex**: `pthread_mutex_t` per sentence
+  - Locks individual sentences during WRITE
+  - Prevents concurrent edits to same sentence
+  - Allows parallel writes to different sentences
+- **Undo Stack Lock**: `pthread_mutex_t` for undo history
+- **File List Lock**: `pthread_mutex_t` for file registry
+- **Log Lock**: `pthread_mutex_t` for logging
+
+### Concurrency Features
+1. **Multiple Concurrent Readers**: Any number of clients can read the same file simultaneously
+2. **Sentence-Level Write Locking**: Different clients can write to different sentences in parallel
+3. **Lock Holder Tracking**: Each sentence remembers which client has it locked
+4. **Deadlock Prevention**: Proper lock ordering (file lock → sentence lock)
+5. **No Race Conditions**: All shared data protected by appropriate locks
+
+### Storage Server Features [Complete]
+- ✅ File storage and retrieval with persistence
+- ✅ Undo history (100-entry circular buffer with snapshots)
+- ✅ Sentence-level locking for WRITE (mutex per sentence)
+- ✅ Data persistence (./storage/ directory)
+- ✅ Client direct connection handling
+- ✅ Concurrent file access (reader-writer locks)
+- ✅ Word-by-word streaming with 0.1s delay
+- ✅ Automatic sentence parsing and re-parsing
+- ✅ Thread-safe operations
 
 ### Client Features [Pending]
 - Interactive command-line interface
@@ -179,9 +241,9 @@ Comprehensive error codes:
 
 ## Building and Running
 
-### Build
+### Build Everything
 ```bash
-make          # Build Name Server
+make          # Build both Name Server and Storage Server
 make clean    # Clean artifacts
 make debug    # Build with debug symbols
 ```
@@ -189,6 +251,15 @@ make debug    # Build with debug symbols
 ### Run Name Server
 ```bash
 ./name_server 8080
+```
+
+### Run Storage Server(s)
+```bash
+# Server 1
+./storage_server 127.0.0.1 8080 9002
+
+# Server 2 (optional, in another terminal)
+./storage_server 127.0.0.1 8080 9003
 ```
 
 ### Test
@@ -199,17 +270,22 @@ python3 test_client.py alice
 # Automated test suite
 python3 test_client.py testuser --test
 
+# Full integration test
+./test_integration.sh
+
 # Manual testing with netcat
 nc localhost 8080
 REGISTER_CLIENT testuser 7001 7002
-VIEW
-LIST
+CREATE myfile.txt
+VIEW -l
+INFO myfile.txt
 QUIT
 ```
 
 ## Documentation
 
 - **NAME_SERVER_README.md**: Detailed Name Server documentation
+- **STORAGE_SERVER_README.md**: Detailed Storage Server documentation
 - **PROTOCOL.md**: Complete protocol specification with examples
 - **TESTING.md**: Comprehensive testing guide
 - **This README**: Project overview
@@ -223,24 +299,28 @@ QUIT
 - Logging and error handling
 - Thread safety
 
-### Phase 2: Storage Server ⏳ (Next)
-- File I/O operations
-- Undo history management
+### Phase 2: Storage Server ✅ (Complete)
+- File I/O operations with persistence
+- Undo history management (circular buffer)
 - Sentence parsing and locking
 - Client connection handler
-- Data persistence
+- Concurrent access control (RW locks + mutexes)
+- Data persistence in ./storage/
+- Word-by-word streaming
 
 ### Phase 3: Client ⏳ (Pending)
-- User interface
+- User interface (CLI)
 - NM communication
 - Direct SS communication for READ/WRITE/STREAM
 - All 11 commands
+- WRITE command with ETIRW protocol
 
-### Phase 4: Integration & Testing ⏳ (Pending)
-- End-to-end workflows
-- Concurrent access testing
-- Stress testing
-- Bug fixes and optimization
+### Phase 4: Integration & Testing ✅ (Complete)
+- NM-SS integration ✅
+- End-to-end workflows ✅
+- Concurrent access testing ✅
+- Integration test script ✅
+- Bug fixes and optimization (ongoing)
 
 ## Protocol Example
 
