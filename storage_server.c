@@ -353,8 +353,18 @@ FileEntry* create_file(StorageServer* ss, const char* filename) {
     
     snprintf(file->filepath, sizeof(file->filepath), "%s/%s", STORAGE_DIR, filename);
     
-    file->sentences = NULL;
-    file->sentence_count = 0;
+    // Initialize with one empty sentence
+    file->sentences = (Sentence*)malloc(sizeof(Sentence));
+    file->sentence_count = 1;
+    
+    // Initialize the first sentence
+    file->sentences[0].content = strdup("");
+    file->sentences[0].length = 0;
+    file->sentences[0].word_count = 0;
+    file->sentences[0].is_locked = false;
+    file->sentences[0].lock_holder_id = -1;
+    pthread_mutex_init(&file->sentences[0].lock, NULL);
+    
     file->total_size = 0;
     file->total_words = 0;
     file->total_chars = 0;
