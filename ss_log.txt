@@ -6,3 +6,36 @@
 [2025-11-05 17:26:56] [INFO] Op=WRITE Details=File=new Sentence=0 Word=1
 [2025-11-05 17:29:57] [INFO] Op=WRITE Details=File=new Sentence=0 Word=1
 [2025-11-05 17:31:02] [INFO] Op=WRITE Details=File=new Sentence=0 Word=1
+[2025-11-05 17:32:11] [INFO] Op=WRITE Details=File=new Sentence=0 Word=0
+[2025-11-05 17:32:29] [INFO] Op=WRITE Details=File=new Sentence=1 Word=0
+[2025-11-05 17:32:50] [INFO] Op=UNDO Details=File=new
+[2025-11-05 17:32:55] [INFO] Op=UNDO Details=File=new
+[2025-11-05 17:33:35] [INFO] Op=WRITE Details=File=new Sentence=0 Word=0
+[2025-11-05 17:33:53] [INFO] Op=WRITE Details=File=new Sentence=0 Word=1
+[2025-11-05 17:34:28] [INFO] Op=WRITE Details=File=new Sentence=0 Word=0
+[2025-11-05 17:34:48] [INFO] Op=WRITE Details=File=new Sentence=1 Word=0
+[2025-11-05 17:35:13] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-05 17:35:13] [INFO] Op=REGISTER_NM Details=SS registered with ID 1
+[2025-11-05 17:35:13] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-05 17:35:37] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-05 17:35:37] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-05 17:35:37] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-05 17:37:56] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-05 17:38:02] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-05 17:38:02] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-05 17:38:02] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-05 17:38:26] [INFO] Op=CREATE Details=File=alice
+[2025-11-05 17:39:50] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-05 17:39:50] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-05 17:39:50] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-05 17:40:33] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-05 17:40:33] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-05 17:40:33] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-05 17:40:48] [INFO] Op=CREATE Details=File=alice
+[2025-11-05 17:41:07] [INFO] Op=WRITE Details=File=alice Sentence=0 Word=0
+[2025-11-05 17:41:42] [INFO] Op=WRITE Details=File=alice Sentence=0 Word=0
+[2025-11-05 17:41:56] [INFO] Op=WRITE Details=File=alice Sentence=0 Word=1
+[2025-11-05 17:42:19] [INFO] Op=WRITE Details=File=alice Sentence=0 Word=1
+[2025-11-05 17:42:34] [INFO] Op=WRITE Details=File=alice Sentence=1 Word=0
+[2025-11-05 17:43:06] [INFO] Op=WRITE Details=File=alice Sentence=2 Word=1
+[2025-11-05 17:43:11] [INFO] Op=WRITE Details=File=alice Sentence=2 Word=1

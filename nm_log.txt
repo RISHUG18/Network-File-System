@@ -21,3 +21,52 @@
 [2025-11-05 17:30:16] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=READ Details=File=new SS_ID=0
 [2025-11-05 17:30:48] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=1 SS_ID=0
 [2025-11-05 17:30:52] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=0 SS_ID=0
+[2025-11-05 17:32:24] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=1 SS_ID=0
+[2025-11-05 17:32:50] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=UNDO Details=File=new
+[2025-11-05 17:32:55] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=UNDO Details=File=new
+[2025-11-05 17:33:09] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=1 SS_ID=0
+[2025-11-05 17:33:16] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=0 SS_ID=0
+[2025-11-05 17:34:02] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=READ Details=File=new SS_ID=0
+[2025-11-05 17:34:11] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=1 SS_ID=0
+[2025-11-05 17:34:14] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=0 SS_ID=0
+[2025-11-05 17:34:40] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=new Sentence=1 SS_ID=0
+[2025-11-05 17:34:58] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=1
+[2025-11-05 17:34:59] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-05 17:35:13] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=1 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=1
+[2025-11-05 17:35:35] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-05 17:35:37] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=1
+[2025-11-05 17:35:43] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-05 17:35:45] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=default
+[2025-11-05 17:35:48] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-la
+[2025-11-05 17:35:51] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-05 17:38:01] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-05 17:38:02] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=1
+[2025-11-05 17:38:05] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-05 17:38:06] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=1 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-05 17:38:10] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-la
+[2025-11-05 17:38:26] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=alice SS_ID=0
+[2025-11-05 17:38:33] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-la
+[2025-11-05 17:39:39] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=1
+[2025-11-05 17:39:40] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-05 17:39:48] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-05 17:39:50] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=2
+[2025-11-05 17:39:52] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-05 17:39:58] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=CLIENT_REGISTER Details=Client_ID=1 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-05 17:40:05] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=VIEW Details=-la
+[2025-11-05 17:40:25] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=CLIENT_DISCONNECT Details=Client_ID=1
+[2025-11-05 17:40:26] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-05 17:40:31] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-05 17:40:33] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=1
+[2025-11-05 17:40:34] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-05 17:40:39] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=CLIENT_REGISTER Details=Client_ID=1 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-05 17:40:43] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=VIEW Details=-la
+[2025-11-05 17:40:48] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=alice SS_ID=0
+[2025-11-05 17:40:56] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=alice Sentence=0 SS_ID=0
+[2025-11-05 17:41:26] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=READ Details=File=alice SS_ID=0
+[2025-11-05 17:41:34] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=alice Sentence=0 SS_ID=0
+[2025-11-05 17:42:13] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=alice Sentence=0 SS_ID=0
+[2025-11-05 17:42:28] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=alice Sentence=1 SS_ID=0
+[2025-11-05 17:42:42] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=alice Sentence=3 SS_ID=0
+[2025-11-05 17:42:54] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=WRITE Details=File=alice Sentence=2 SS_ID=0
+[2025-11-05 17:43:15] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-05 17:43:16] [INFO] IP=127.0.0.1 Port=7001 User=adi Op=CLIENT_DISCONNECT Details=Client_ID=1
