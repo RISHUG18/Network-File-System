@@ -174,6 +174,7 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
         // Save old sentence locks state
         bool* lock_states = (bool*)malloc(file->sentence_count * sizeof(bool));
         int* lock_holders = (int*)malloc(file->sentence_count * sizeof(int));
+        int old_sentence_count = file->sentence_count;
         for (int i = 0; i < file->sentence_count; i++) {
             lock_states[i] = file->sentences[i].is_locked;
             lock_holders[i] = file->sentences[i].lock_holder_id;
@@ -189,8 +190,14 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
         // Reparse with new content (this creates new sentence structures)
         parse_sentences(file, full_content);
         
-        // Note: locks are lost during reparse - this is expected behavior
-        // The client should unlock and relock if continuing to edit
+        // Try to restore locks where possible
+        // If a sentence was locked and still exists, keep it locked
+        for (int i = 0; i < old_sentence_count && i < file->sentence_count; i++) {
+            if (lock_states[i]) {
+                file->sentences[i].is_locked = true;
+                file->sentences[i].lock_holder_id = lock_holders[i];
+            }
+        }
         
         free(lock_states);
         free(lock_holders);

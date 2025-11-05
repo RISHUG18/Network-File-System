@@ -89,8 +89,15 @@ int count_words(const char* text) {
 
 void parse_sentences(FileEntry* file, const char* content) {
     if (!content || strlen(content) == 0) {
-        file->sentence_count = 0;
-        file->sentences = NULL;
+        // Create one empty sentence for new files
+        file->sentence_count = 1;
+        file->sentences = (Sentence*)calloc(1, sizeof(Sentence));
+        file->sentences[0].content = strdup("");
+        file->sentences[0].length = 0;
+        file->sentences[0].word_count = 0;
+        file->sentences[0].is_locked = false;
+        file->sentences[0].lock_holder_id = -1;
+        pthread_mutex_init(&file->sentences[0].lock, NULL);
         file->total_size = 0;
         file->total_words = 0;
         file->total_chars = 0;
@@ -107,7 +114,12 @@ void parse_sentences(FileEntry* file, const char* content) {
     }
     
     // If no delimiters, treat whole content as one sentence
-    if (sent_count == 0) sent_count = 1;
+    // If ends with delimiter, add one more empty sentence
+    if (sent_count == 0) {
+        sent_count = 1;
+    } else if (len > 0 && is_sentence_delimiter(content[len - 1])) {
+        sent_count++; // Add empty sentence after final delimiter
+    }
     
     // Allocate sentence array
     file->sentences = (Sentence*)calloc(sent_count, sizeof(Sentence));
@@ -117,35 +129,39 @@ void parse_sentences(FileEntry* file, const char* content) {
     int sent_idx = 0;
     int start = 0;
     
-    for (int i = 0; i < len; i++) {
-        if (is_sentence_delimiter(content[i]) || i == len - 1) {
-            int end = i + 1;
-            if (i == len - 1 && !is_sentence_delimiter(content[i])) {
-                end = len;
-            }
-            
-            int sent_len = end - start;
-            if (sent_len > 0) {
-                file->sentences[sent_idx].content = (char*)malloc(sent_len + 1);
-                strncpy(file->sentences[sent_idx].content, content + start, sent_len);
-                file->sentences[sent_idx].content[sent_len] = '\0';
-                file->sentences[sent_idx].length = sent_len;
-                file->sentences[sent_idx].word_count = count_words(file->sentences[sent_idx].content);
-                file->sentences[sent_idx].is_locked = false;
-                file->sentences[sent_idx].lock_holder_id = -1;
-                pthread_mutex_init(&file->sentences[sent_idx].lock, NULL);
-                
-                sent_idx++;
-                start = end;
-                
-                // Skip whitespace after delimiter
-                while (start < len && (content[start] == ' ' || content[start] == '\n')) {
-                    start++;
-                }
-                i = start - 1;
-            }
-            
-            if (sent_idx >= sent_count) break;
+    while (start <= len && sent_idx < sent_count) {
+        // Find next delimiter or end of content
+        int end = start;
+        while (end < len && !is_sentence_delimiter(content[end])) {
+            end++;
+        }
+        
+        // Include the delimiter in the sentence if found
+        if (end < len && is_sentence_delimiter(content[end])) {
+            end++;
+        }
+        
+        int sent_len = end - start;
+        
+        // Create sentence even if empty
+        file->sentences[sent_idx].content = (char*)malloc(sent_len + 1);
+        if (sent_len > 0) {
+            strncpy(file->sentences[sent_idx].content, content + start, sent_len);
+        }
+        file->sentences[sent_idx].content[sent_len] = '\0';
+        file->sentences[sent_idx].length = sent_len;
+        file->sentences[sent_idx].word_count = count_words(file->sentences[sent_idx].content);
+        file->sentences[sent_idx].is_locked = false;
+        file->sentences[sent_idx].lock_holder_id = -1;
+        pthread_mutex_init(&file->sentences[sent_idx].lock, NULL);
+        
+        sent_idx++;
+        
+        // Move to next sentence start
+        start = end;
+        // Skip whitespace after delimiter
+        while (start < len && (content[start] == ' ' || content[start] == '\n' || content[start] == '\t')) {
+            start++;
         }
     }
     

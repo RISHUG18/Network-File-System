@@ -189,6 +189,11 @@ void* handle_client_connection(void* arg) {
     char buffer[BUFFER_SIZE];
     int client_id = client_fd;  // Use socket FD as client ID for simplicity
     
+    // Track current write session
+    bool in_write_mode = false;
+    char write_filename[MAX_FILENAME];
+    int write_sentence_num = -1;
+    
     while (ss->is_running) {
         int bytes = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
         if (bytes <= 0) {
@@ -222,11 +227,16 @@ void* handle_client_connection(void* arg) {
                 send_response(client_fd, error_msg);
             }
         }
-        else if (strcmp(cmd, "WRITE_LOCK") == 0 && arg_count >= 2) {
-            int sentence_num = atoi(args[1]);
-            ErrorCode err = lock_sentence(ss, args[0], sentence_num, client_id);
+        else if (strcmp(cmd, "WRITE") == 0 && arg_count >= 2) {
+            // WRITE <filename> <sentence_num> - Locks the sentence for writing
+            strncpy(write_filename, args[0], MAX_FILENAME - 1);
+            write_filename[MAX_FILENAME - 1] = '\0';
+            write_sentence_num = atoi(args[1]);
+            
+            ErrorCode err = lock_sentence(ss, write_filename, write_sentence_num, client_id);
             
             if (err == ERR_SUCCESS) {
+                in_write_mode = true;
                 send_response(client_fd, "LOCKED\n");
             } else {
                 char error_msg[256];
@@ -234,38 +244,53 @@ void* handle_client_connection(void* arg) {
                 send_response(client_fd, error_msg);
             }
         }
-        else if (strcmp(cmd, "WRITE") == 0 && arg_count >= 4) {
-            // WRITE <filename> <sentence_num> <word_index> <content>
-            int sentence_num = atoi(args[1]);
-            int word_index = atoi(args[2]);
-            
-            // Reconstruct content (may have spaces)
-            char content[BUFFER_SIZE] = {0};
-            for (int i = 3; i < arg_count; i++) {
-                if (i > 3) strcat(content, " ");
-                strcat(content, args[i]);
-            }
-            
-            ErrorCode err = write_sentence(ss, args[0], sentence_num, word_index, content, client_id);
-            
-            if (err == ERR_SUCCESS) {
-                send_response(client_fd, "SUCCESS\n");
+        else if (strcmp(cmd, "ETIRW") == 0) {
+            // Finalize changes and unlock
+            if (in_write_mode) {
+                ErrorCode err = unlock_sentence(ss, write_filename, write_sentence_num, client_id);
+                
+                if (err == ERR_SUCCESS) {
+                    send_response(client_fd, "SUCCESS\n");
+                } else {
+                    char error_msg[256];
+                    snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(err));
+                    send_response(client_fd, error_msg);
+                }
+                
+                in_write_mode = false;
+                write_sentence_num = -1;
             } else {
-                char error_msg[256];
-                snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(err));
-                send_response(client_fd, error_msg);
+                send_response(client_fd, "ERROR:Not in write mode\n");
             }
         }
-        else if (strcmp(cmd, "WRITE_UNLOCK") == 0 && arg_count >= 2) {
-            int sentence_num = atoi(args[1]);
-            ErrorCode err = unlock_sentence(ss, args[0], sentence_num, client_id);
+        else if (in_write_mode && arg_count >= 1) {
+            // In write mode: <word_index> <content>
+            // cmd contains word_index as a string number
+            // Check if cmd is a number (word index)
+            char* endptr;
+            long word_index = strtol(cmd, &endptr, 10);
             
-            if (err == ERR_SUCCESS) {
-                send_response(client_fd, "UNLOCKED\n");
+            // If cmd is a valid number and we have content in args
+            if (*endptr == '\0' && arg_count >= 1) {
+                // Reconstruct content from all args (args[0] onwards)
+                char content[BUFFER_SIZE] = {0};
+                for (int i = 0; i < arg_count; i++) {
+                    if (i > 0) strcat(content, " ");
+                    strcat(content, args[i]);
+                }
+                
+                ErrorCode err = write_sentence(ss, write_filename, write_sentence_num, 
+                                              (int)word_index, content, client_id);
+                
+                if (err == ERR_SUCCESS) {
+                    send_response(client_fd, "SUCCESS\n");
+                } else {
+                    char error_msg[256];
+                    snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(err));
+                    send_response(client_fd, error_msg);
+                }
             } else {
-                char error_msg[256];
-                snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(err));
-                send_response(client_fd, error_msg);
+                send_response(client_fd, "ERROR:Invalid format. Use: <word_index> <content>\n");
             }
         }
         else {

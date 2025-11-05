@@ -69,34 +69,32 @@ void cmd_write_file(Client* client, const char* filename, int sentence_num) {
         return;
     }
     
-    // Step 3: Lock the sentence
-    printf("Locking sentence %d...\n", sentence_num);
-    char lock_command[512];
-    snprintf(lock_command, sizeof(lock_command), "WRITE_LOCK %s %d", filename, sentence_num);
+    // Step 3: Send WRITE command (this locks the sentence)
+    printf("Locking sentence %d for writing...\n", sentence_num);
+    char write_command[512];
+    snprintf(write_command, sizeof(write_command), "WRITE %s %d", filename, sentence_num);
     
     char response[BUFFER_SIZE];
-    send_ss_command(ss_socket, lock_command, response, sizeof(response));
+    send_ss_command(ss_socket, write_command, response, sizeof(response));
     
-    if (strncmp(response, "LOCKED", 6) != 0) {
+    // Check if lock was acquired
+    if (strncmp(response, "LOCKED", 6) != 0 && strncmp(response, "0:", 2) != 0 && strncmp(response, "SUCCESS", 7) != 0) {
         printf("✗ Failed to lock sentence: %s\n", response);
         close(ss_socket);
         return;
     }
     
     printf("✓ Sentence locked\n");
-    
-    // Step 4: Interactive write loop
-    printf("\nWrite Mode (ETIRW Protocol)\n");
-    printf("Commands:\n");
-    printf("  write <word_index> <new_word>  - Update word at index\n");
-    printf("  done                           - Finish and unlock\n");
-    printf("  cancel                         - Cancel and unlock\n");
+    printf("\nWrite Mode - Direct Protocol\n");
+    printf("Format: <word_index> <content>\n");
+    printf("Type 'ETIRW' to finalize changes and unlock\n");
+    printf("Type 'cancel' to cancel without saving\n\n");
     
     char line[BUFFER_SIZE];
     bool done = false;
     
     while (!done) {
-        printf("\nwrite> ");
+        printf("write> ");
         fflush(stdout);
         
         if (!fgets(line, sizeof(line), stdin)) {
@@ -113,58 +111,52 @@ void cmd_write_file(Client* client, const char* filename, int sentence_num) {
             continue;
         }
         
-        // Parse command
-        char* cmd = strtok(line, " ");
-        if (!cmd) {
-            continue;
-        }
-        
-        if (strcmp(cmd, "done") == 0 || strcmp(cmd, "cancel") == 0) {
-            done = true;
-        } else if (strcmp(cmd, "write") == 0) {
-            char* word_index_str = strtok(NULL, " ");
-            char* new_word = strtok(NULL, "");  // Get rest of line
+        // Check for ETIRW (finalize)
+        if (strcmp(line, "ETIRW") == 0) {
+            printf("Finalizing changes...\n");
+            send_ss_command(ss_socket, "ETIRW", response, sizeof(response));
             
-            if (!word_index_str || !new_word) {
-                printf("Usage: write <word_index> <new_word>\n");
+            if (strncmp(response, "SUCCESS", 7) == 0 || strncmp(response, "0:", 2) == 0) {
+                printf("✓ Changes finalized and sentence unlocked\n");
+            } else {
+                printf("✗ Failed to finalize: %s\n", response);
+            }
+            done = true;
+        }
+        // Check for cancel
+        else if (strcmp(line, "cancel") == 0) {
+            printf("Cancelling changes...\n");
+            send_ss_command(ss_socket, "ETIRW", response, sizeof(response));
+            printf("✓ Cancelled\n");
+            done = true;
+        }
+        // Parse as "<word_index> <content>"
+        else {
+            char* word_index_str = strtok(line, " ");
+            char* new_content = strtok(NULL, "");  // Get rest of line
+            
+            if (!word_index_str || !new_content) {
+                printf("Usage: <word_index> <content>\n");
                 continue;
             }
             
-            // Skip leading whitespace in new_word
-            while (*new_word == ' ' || *new_word == '\t') {
-                new_word++;
+            // Skip leading whitespace in new_content
+            while (*new_content == ' ' || *new_content == '\t') {
+                new_content++;
             }
             
-            int word_index = atoi(word_index_str);
+            // Send the word update command directly
+            char update_cmd[BUFFER_SIZE];
+            snprintf(update_cmd, sizeof(update_cmd), "%s %s", word_index_str, new_content);
             
-            // Send WRITE command to SS
-            char write_command[BUFFER_SIZE];
-            snprintf(write_command, sizeof(write_command), "WRITE %s %d %d %s", 
-                    filename, sentence_num, word_index, new_word);
+            send_ss_command(ss_socket, update_cmd, response, sizeof(response));
             
-            send_ss_command(ss_socket, write_command, response, sizeof(response));
-            
-            if (strncmp(response, "SUCCESS", 7) == 0) {
-                printf("✓ Word updated successfully\n");
+            if (strncmp(response, "SUCCESS", 7) == 0 || strncmp(response, "0:", 2) == 0) {
+                printf("✓ Word updated\n");
             } else {
-                printf("✗ Write failed: %s\n", response);
+                printf("✗ Update failed: %s\n", response);
             }
-        } else {
-            printf("Unknown command: %s\n", cmd);
         }
-    }
-    
-    // Step 5: Unlock the sentence
-    printf("Unlocking sentence...\n");
-    char unlock_command[512];
-    snprintf(unlock_command, sizeof(unlock_command), "WRITE_UNLOCK %s %d", filename, sentence_num);
-    
-    send_ss_command(ss_socket, unlock_command, response, sizeof(response));
-    
-    if (strncmp(response, "UNLOCKED", 8) == 0) {
-        printf("✓ Sentence unlocked\n");
-    } else {
-        printf("✗ Failed to unlock: %s\n", response);
     }
     
     close(ss_socket);
