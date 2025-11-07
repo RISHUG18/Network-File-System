@@ -129,6 +129,7 @@ ErrorCode unlock_sentence(StorageServer* ss, const char* filename, int sentence_
 // Sentence parsing
 void parse_sentences(FileEntry* file, const char* content);
 void rebuild_file_content(FileEntry* file, char* content);
+void refresh_file_stats(FileEntry* file);
 int count_words(const char* text);
 bool is_sentence_delimiter(char c);
 

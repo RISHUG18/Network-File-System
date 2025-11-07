@@ -1,4 +1,5 @@
 #include "client.h"
+#include <netdb.h>
 
 // ==================== CORE CLIENT FUNCTIONS ====================
 
@@ -25,32 +26,45 @@ Client* create_client(const char* username, const char* nm_host, int nm_port) {
 }
 
 bool connect_to_nm(Client* client) {
-    // Create socket
-    client->nm_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (client->nm_socket < 0) {
-        perror("Failed to create socket");
+    struct addrinfo hints;
+    struct addrinfo* result = NULL;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%d", client->nm_port);
+
+    int gai_err = getaddrinfo(client->nm_host, port_str, &hints, &result);
+    if (gai_err != 0) {
+        fprintf(stderr, "Failed to resolve Name Server host '%s': %s\n",
+                client->nm_host, gai_strerror(gai_err));
         return false;
     }
-    
-    // Connect to Name Server
-    struct sockaddr_in nm_addr;
-    memset(&nm_addr, 0, sizeof(nm_addr));
-    nm_addr.sin_family = AF_INET;
-    nm_addr.sin_port = htons(client->nm_port);
-    
-    if (inet_pton(AF_INET, client->nm_host, &nm_addr.sin_addr) <= 0) {
-        perror("Invalid address");
-        close(client->nm_socket);
-        client->nm_socket = -1;
+
+    int socket_fd = -1;
+    for (struct addrinfo* rp = result; rp != NULL; rp = rp->ai_next) {
+        socket_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (socket_fd < 0) {
+            continue;
+        }
+
+        if (connect(socket_fd, rp->ai_addr, rp->ai_addrlen) == 0) {
+            break;
+        }
+
+        close(socket_fd);
+        socket_fd = -1;
+    }
+
+    freeaddrinfo(result);
+
+    if (socket_fd < 0) {
+        perror("Failed to connect to Name Server");
         return false;
     }
-    
-    if (connect(client->nm_socket, (struct sockaddr*)&nm_addr, sizeof(nm_addr)) < 0) {
-        perror("Connection failed");
-        close(client->nm_socket);
-        client->nm_socket = -1;
-        return false;
-    }
+
+    client->nm_socket = socket_fd;
     
     // Register with Name Server
     char register_cmd[256];

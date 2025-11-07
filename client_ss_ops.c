@@ -198,37 +198,71 @@ void cmd_stream_file(Client* client, const char* filename) {
     
     // Step 4: Receive and display words one by one
     printf("\n--- Streaming File ---\n");
-    
+
     char buffer[BUFFER_SIZE];
-    ssize_t total_bytes = 0;
-    
-    while (1) {
-        ssize_t bytes = recv(ss_socket, buffer, sizeof(buffer) - 1, 0);
+    char pending[BUFFER_SIZE];
+    size_t pending_len = 0;
+    bool saw_data = false;
+    bool done = false;
+
+    while (!done) {
+        ssize_t bytes = recv(ss_socket, buffer, sizeof(buffer), 0);
         if (bytes <= 0) {
             break;  // Connection closed or error
         }
-        
-        buffer[bytes] = '\0';
-        
-        // Check for error message
-        if (total_bytes == 0 && strncmp(buffer, "ERROR:", 6) == 0) {
-            printf("✗ %s\n", buffer + 6);
-            close(ss_socket);
-            return;
+
+        saw_data = true;
+
+        if (pending_len + (size_t)bytes >= sizeof(pending)) {
+            pending_len = 0;  // Prevent overflow by dropping stale partial data
         }
-        
-        // Print the received data (words with delays)
-        printf("%s", buffer);
-        fflush(stdout);
-        
-        total_bytes += bytes;
+
+        memcpy(pending + pending_len, buffer, (size_t)bytes);
+        pending_len += (size_t)bytes;
+
+        size_t processed = 0;
+        while (processed < pending_len) {
+            char* newline = memchr(pending + processed, '\n', pending_len - processed);
+            if (!newline) {
+                break;  // Need more data for a complete line
+            }
+
+            size_t line_len = (size_t)(newline - (pending + processed));
+            char line[BUFFER_SIZE];
+            if (line_len >= sizeof(line)) {
+                line_len = sizeof(line) - 1;
+            }
+            memcpy(line, pending + processed, line_len);
+            line[line_len] = '\0';
+
+            if (processed == 0 && strncmp(line, "ERROR:", 6) == 0) {
+                printf("✗ %s\n", line + 6);
+                done = true;
+                break;
+            }
+
+            if (strcmp(line, "STOP") == 0) {
+                done = true;
+                break;
+            }
+
+            printf("%s\n", line);
+            fflush(stdout);
+
+            processed = (size_t)(newline - pending) + 1;
+        }
+
+        if (processed > 0) {
+            memmove(pending, pending + processed, pending_len - processed);
+            pending_len -= processed;
+        }
     }
-    
-    if (total_bytes > 0) {
-        printf("\n--- End of Stream ---\n");
+
+    if (saw_data) {
+        printf("--- End of Stream ---\n");
     } else {
         printf("✗ No data received\n");
     }
-    
+
     close(ss_socket);
 }

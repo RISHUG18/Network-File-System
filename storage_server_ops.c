@@ -7,25 +7,82 @@ ErrorCode lock_sentence(StorageServer* ss, const char* filename, int sentence_nu
     if (!file) {
         return ERR_FILE_NOT_FOUND;
     }
-    
-    if (sentence_num < 0 || sentence_num >= file->sentence_count) {
+
+    if (sentence_num < 0 || sentence_num > file->sentence_count) {
         return ERR_INVALID_SENTENCE;
     }
-    
-    Sentence* sent = &file->sentences[sentence_num];
-    
-    pthread_mutex_lock(&sent->lock);
-    
-    if (sent->is_locked && sent->lock_holder_id != client_id) {
-        pthread_mutex_unlock(&sent->lock);
+
+    char snapshot[MAX_CONTENT_SIZE];
+    bool snapshot_ready = false;
+
+    if (sentence_num == file->sentence_count) {
+        // Take snapshot before modifying file structure
+        pthread_rwlock_rdlock(&file->file_lock);
+        rebuild_file_content(file, snapshot);
+        snapshot_ready = true;
+        pthread_rwlock_unlock(&file->file_lock);
+
+        pthread_rwlock_wrlock(&file->file_lock);
+
+        Sentence* buffer = (Sentence*)realloc(file->sentences, (file->sentence_count + 1) * sizeof(Sentence));
+        if (!buffer) {
+            pthread_rwlock_unlock(&file->file_lock);
+            return ERR_SYSTEM_ERROR;
+        }
+
+        file->sentences = buffer;
+
+        Sentence* new_sentence = &file->sentences[file->sentence_count];
+        memset(new_sentence, 0, sizeof(Sentence));
+
+        new_sentence->content = strdup("");
+        if (!new_sentence->content) {
+            pthread_rwlock_unlock(&file->file_lock);
+            return ERR_SYSTEM_ERROR;
+        }
+
+        pthread_mutex_init(&new_sentence->lock, NULL);
+        new_sentence->length = 0;
+        new_sentence->word_count = 0;
+        new_sentence->is_locked = true;
+        new_sentence->lock_holder_id = client_id;
+        file->sentence_count++;
+
+        pthread_rwlock_unlock(&file->file_lock);
+
+        if (snapshot_ready) {
+            push_undo(ss, filename, snapshot);
+        }
+        return ERR_SUCCESS;
+    }
+
+    Sentence* sentence = &file->sentences[sentence_num];
+
+    pthread_mutex_lock(&sentence->lock);
+
+    if (sentence->is_locked) {
+        if (sentence->lock_holder_id == client_id) {
+            pthread_mutex_unlock(&sentence->lock);
+            return ERR_SUCCESS;
+        }
+        pthread_mutex_unlock(&sentence->lock);
         return ERR_FILE_LOCKED;
     }
-    
-    sent->is_locked = true;
-    sent->lock_holder_id = client_id;
-    
-    pthread_mutex_unlock(&sent->lock);
-    
+
+    pthread_rwlock_rdlock(&file->file_lock);
+    rebuild_file_content(file, snapshot);
+    snapshot_ready = true;
+    pthread_rwlock_unlock(&file->file_lock);
+
+    sentence->is_locked = true;
+    sentence->lock_holder_id = client_id;
+
+    pthread_mutex_unlock(&sentence->lock);
+
+    if (snapshot_ready) {
+        push_undo(ss, filename, snapshot);
+    }
+
     return ERR_SUCCESS;
 }
 
@@ -63,23 +120,29 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
     // Lock the file for writing
     pthread_rwlock_wrlock(&file->file_lock);
     
-    // Save current state for undo
-    char old_content[MAX_CONTENT_SIZE];
-    rebuild_file_content(file, old_content);
-    push_undo(ss, filename, old_content);
-    
     if (sentence_num < 0 || sentence_num >= file->sentence_count) {
-        // If sentence doesn't exist, create new sentences
+        // If sentence doesn't exist, create new sentences (fallback for clients that skipped lock)
         if (sentence_num == file->sentence_count) {
+            char snapshot[MAX_CONTENT_SIZE];
+            rebuild_file_content(file, snapshot);
+            push_undo(ss, filename, snapshot);
+
             // Extend sentence array
-            file->sentences = (Sentence*)realloc(file->sentences, 
+            Sentence* grown = (Sentence*)realloc(file->sentences, 
                                                 (file->sentence_count + 1) * sizeof(Sentence));
+            if (!grown) {
+                pthread_rwlock_unlock(&file->file_lock);
+                return ERR_SYSTEM_ERROR;
+            }
+
+            file->sentences = grown;
             Sentence* new_sent = &file->sentences[file->sentence_count];
+            memset(new_sent, 0, sizeof(Sentence));
             new_sent->content = strdup("");
             new_sent->length = 0;
             new_sent->word_count = 0;
-            new_sent->is_locked = false;
-            new_sent->lock_holder_id = -1;
+            new_sent->is_locked = true;
+            new_sent->lock_holder_id = client_id;
             pthread_mutex_init(&new_sent->lock, NULL);
             file->sentence_count++;
         } else {
@@ -204,6 +267,7 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
     }
     
     // Save to disk
+    refresh_file_stats(file);
     file->last_modified = time(NULL);
     save_file_to_disk(file);
     
@@ -344,8 +408,10 @@ StorageServer* init_storage_server(const char* nm_ip, int nm_port, int client_po
     ss->nm_port = nm_port;
     ss->client_port = client_port;
     ss->nm_socket_fd = -1;
+    ss->client_socket_fd = -1;
     ss->file_count = 0;
     ss->is_running = true;
+    memset(ss->files, 0, sizeof(ss->files));
     
     // Initialize locks
     pthread_mutex_init(&ss->files_lock, NULL);

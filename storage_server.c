@@ -104,95 +104,171 @@ void parse_sentences(FileEntry* file, const char* content) {
         return;
     }
     
-    // Count sentences first
-    int sent_count = 0;
-    int len = strlen(content);
-    for (int i = 0; i < len; i++) {
-        if (is_sentence_delimiter(content[i])) {
-            sent_count++;
+    size_t len = strlen(content);
+    Sentence* sentences = NULL;
+    int capacity = 0;
+    int count = 0;
+
+    size_t index = 0;
+    while (index < len) {
+        while (index < len && (content[index] == ' ' || content[index] == '\n' || content[index] == '\t')) {
+            index++;
         }
+
+        if (index >= len) {
+            break;
+        }
+
+        size_t start = index;
+
+        // Find next delimiter or end of string
+        while (index < len && !is_sentence_delimiter(content[index])) {
+            index++;
+        }
+
+        bool has_delimiter = (index < len && is_sentence_delimiter(content[index]));
+        size_t end = index;
+
+        if (has_delimiter) {
+            end++; // include delimiter
+            index++; // move past delimiter
+        }
+
+        size_t sentence_len = end - start;
+
+        // Skip whitespace before the next sentence
+        while (index < len && (content[index] == ' ' || content[index] == '\n' || content[index] == '\t')) {
+            index++;
+        }
+
+        // Ignore empty segments caused by consecutive delimiters or whitespace
+        if (sentence_len == 0) {
+            continue;
+        }
+
+        if (count == capacity) {
+            int new_capacity = (capacity == 0) ? 4 : capacity * 2;
+            Sentence* resized = (Sentence*)realloc(sentences, new_capacity * sizeof(Sentence));
+            if (!resized) {
+                for (int i = 0; i < count; i++) {
+                    free(sentences[i].content);
+                    pthread_mutex_destroy(&sentences[i].lock);
+                }
+                free(sentences);
+
+                sentences = (Sentence*)calloc(1, sizeof(Sentence));
+                sentences[0].content = strdup("");
+                sentences[0].length = 0;
+                sentences[0].word_count = 0;
+                sentences[0].is_locked = false;
+                sentences[0].lock_holder_id = -1;
+                pthread_mutex_init(&sentences[0].lock, NULL);
+
+                file->sentences = sentences;
+                file->sentence_count = 1;
+                refresh_file_stats(file);
+                return;
+            }
+            sentences = resized;
+            capacity = new_capacity;
+        }
+
+        Sentence* sentence = &sentences[count];
+        memset(sentence, 0, sizeof(Sentence));
+
+        sentence->content = (char*)malloc(sentence_len + 1);
+        memcpy(sentence->content, content + start, sentence_len);
+        sentence->content[sentence_len] = '\0';
+        sentence->length = (int)sentence_len;
+        sentence->word_count = count_words(sentence->content);
+        sentence->is_locked = false;
+        sentence->lock_holder_id = -1;
+        pthread_mutex_init(&sentence->lock, NULL);
+
+        count++;
     }
-    
-    // If no delimiters, treat whole content as one sentence
-    // If ends with delimiter, add one more empty sentence
-    if (sent_count == 0) {
-        sent_count = 1;
-    } else if (len > 0 && is_sentence_delimiter(content[len - 1])) {
-        sent_count++; // Add empty sentence after final delimiter
+
+    if (count == 0) {
+        // Fallback to single empty sentence if parsing produced nothing
+        sentences = (Sentence*)calloc(1, sizeof(Sentence));
+        sentences[0].content = strdup("");
+        sentences[0].length = 0;
+        sentences[0].word_count = 0;
+        sentences[0].is_locked = false;
+        sentences[0].lock_holder_id = -1;
+        pthread_mutex_init(&sentences[0].lock, NULL);
+        count = 1;
     }
-    
-    // Allocate sentence array
-    file->sentences = (Sentence*)calloc(sent_count, sizeof(Sentence));
-    file->sentence_count = sent_count;
-    
-    // Parse sentences
-    int sent_idx = 0;
-    int start = 0;
-    
-    while (start <= len && sent_idx < sent_count) {
-        // Find next delimiter or end of content
-        int end = start;
-        while (end < len && !is_sentence_delimiter(content[end])) {
-            end++;
-        }
-        
-        // Include the delimiter in the sentence if found
-        if (end < len && is_sentence_delimiter(content[end])) {
-            end++;
-        }
-        
-        int sent_len = end - start;
-        
-        // Create sentence even if empty
-        file->sentences[sent_idx].content = (char*)malloc(sent_len + 1);
-        if (sent_len > 0) {
-            strncpy(file->sentences[sent_idx].content, content + start, sent_len);
-        }
-        file->sentences[sent_idx].content[sent_len] = '\0';
-        file->sentences[sent_idx].length = sent_len;
-        file->sentences[sent_idx].word_count = count_words(file->sentences[sent_idx].content);
-        file->sentences[sent_idx].is_locked = false;
-        file->sentences[sent_idx].lock_holder_id = -1;
-        pthread_mutex_init(&file->sentences[sent_idx].lock, NULL);
-        
-        sent_idx++;
-        
-        // Move to next sentence start
-        start = end;
-        // Skip whitespace after delimiter
-        while (start < len && (content[start] == ' ' || content[start] == '\n' || content[start] == '\t')) {
-            start++;
-        }
-    }
-    
-    file->sentence_count = sent_idx;
-    
-    // Calculate totals
-    file->total_size = len;
-    file->total_chars = len;
-    file->total_words = 0;
-    for (int i = 0; i < file->sentence_count; i++) {
-        file->total_words += file->sentences[i].word_count;
-    }
+
+    file->sentences = sentences;
+    file->sentence_count = count;
+    refresh_file_stats(file);
 }
 
 void rebuild_file_content(FileEntry* file, char* content) {
+    size_t offset = 0;
     content[0] = '\0';
-    int offset = 0;
     
     for (int i = 0; i < file->sentence_count; i++) {
-        if (file->sentences[i].content) {
-            strcpy(content + offset, file->sentences[i].content);
-            offset += file->sentences[i].length;
-            
-            // Add space between sentences if needed
-            if (i < file->sentence_count - 1 && 
-                file->sentences[i].content[file->sentences[i].length - 1] != ' ') {
-                content[offset++] = ' ';
+        Sentence* sentence = &file->sentences[i];
+        if (!sentence->content) {
+            continue;
+        }
+
+        if (sentence->length > 0) {
+            memcpy(content + offset, sentence->content, sentence->length);
+            offset += (size_t)sentence->length;
+            content[offset] = '\0';
+        }
+
+        bool add_space = false;
+        if (i < file->sentence_count - 1) {
+            Sentence* next_sentence = &file->sentences[i + 1];
+            if (sentence->length > 0 &&
+                sentence->content[sentence->length - 1] != ' ' &&
+                next_sentence->content && next_sentence->length > 0) {
+                add_space = true;
+            }
+        }
+
+        if (add_space) {
+            content[offset++] = ' ';
+            content[offset] = '\0';
+        }
+    }
+
+    content[offset] = '\0';
+}
+
+void refresh_file_stats(FileEntry* file) {
+    size_t total_chars = 0;
+    int total_words = 0;
+
+    for (int i = 0; i < file->sentence_count; i++) {
+        Sentence* sentence = &file->sentences[i];
+        if (!sentence->content) {
+            continue;
+        }
+
+        if (sentence->length > 0) {
+            total_chars += (size_t)sentence->length;
+        }
+
+        total_words += sentence->word_count;
+
+        if (i < file->sentence_count - 1) {
+            Sentence* next_sentence = &file->sentences[i + 1];
+            if (sentence->length > 0 &&
+                sentence->content[sentence->length - 1] != ' ' &&
+                next_sentence->content && next_sentence->length > 0) {
+                total_chars += 1;
             }
         }
     }
-    content[offset] = '\0';
+
+    file->total_chars = total_chars;
+    file->total_size = total_chars;
+    file->total_words = total_words;
 }
 
 // ==================== FILE PERSISTENCE ====================

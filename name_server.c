@@ -413,11 +413,24 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
     
     pthread_mutex_unlock(&nm->ss_lock);
     
-    // Add files to trie
+    // Add files to trie (reuse existing metadata when available)
     pthread_mutex_lock(&nm->trie_lock);
     for (int i = 0; i < file_count; i++) {
-        FileMetadata* metadata = (FileMetadata*)malloc(sizeof(FileMetadata));
-        strncpy(metadata->filename, files[i], MAX_FILENAME);
+        FileMetadata* metadata = search_file_trie(nm->file_trie, files[i]);
+        if (metadata) {
+            metadata->ss_id = ss_id;
+            metadata->last_accessed = time(NULL);
+            put_in_cache(nm->cache, files[i], metadata);
+            continue;
+        }
+
+        metadata = (FileMetadata*)calloc(1, sizeof(FileMetadata));
+        if (!metadata) {
+            continue;
+        }
+
+        strncpy(metadata->filename, files[i], MAX_FILENAME - 1);
+        metadata->filename[MAX_FILENAME - 1] = '\0';
         metadata->owner[0] = '\0';  // Will be set on first write
         metadata->ss_id = ss_id;
         metadata->created_time = time(NULL);
@@ -427,8 +440,9 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
         metadata->word_count = 0;
         metadata->char_count = 0;
         metadata->acl = NULL;
-        
+
         insert_file_trie(nm->file_trie, files[i], metadata);
+        put_in_cache(nm->cache, files[i], metadata);
     }
     pthread_mutex_unlock(&nm->trie_lock);
     
