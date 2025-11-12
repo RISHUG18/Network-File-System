@@ -15,65 +15,56 @@ ErrorCode lock_sentence(StorageServer* ss, const char* filename, int sentence_nu
     char snapshot[MAX_CONTENT_SIZE];
     bool snapshot_ready = false;
 
+    // Take snapshot before any modifications
+    pthread_rwlock_rdlock(&file->file_lock);
+    rebuild_file_content(file, snapshot);
+    snapshot_ready = true;
+    pthread_rwlock_unlock(&file->file_lock);
+
+    // If requesting to lock a new sentence at the end
     if (sentence_num == file->sentence_count) {
-        // Take snapshot before modifying file structure
-        pthread_rwlock_rdlock(&file->file_lock);
-        rebuild_file_content(file, snapshot);
-        snapshot_ready = true;
-        pthread_rwlock_unlock(&file->file_lock);
-
-        pthread_rwlock_wrlock(&file->file_lock);
-
-        Sentence* buffer = (Sentence*)realloc(file->sentences, (file->sentence_count + 1) * sizeof(Sentence));
-        if (!buffer) {
-            pthread_rwlock_unlock(&file->file_lock);
+        // Create new empty sentence
+        SentenceNode* new_node = create_empty_sentence_node();
+        if (!new_node) {
             return ERR_SYSTEM_ERROR;
         }
-
-        file->sentences = buffer;
-
-        Sentence* new_sentence = &file->sentences[file->sentence_count];
-        memset(new_sentence, 0, sizeof(Sentence));
-
-        new_sentence->content = strdup("");
-        if (!new_sentence->content) {
-            pthread_rwlock_unlock(&file->file_lock);
-            return ERR_SYSTEM_ERROR;
-        }
-
-        pthread_mutex_init(&new_sentence->lock, NULL);
-        new_sentence->length = 0;
-        new_sentence->word_count = 0;
-        new_sentence->is_locked = true;
-        new_sentence->lock_holder_id = client_id;
-        file->sentence_count++;
-
-        pthread_rwlock_unlock(&file->file_lock);
-
+        
+        // Lock it immediately
+        pthread_mutex_lock(&new_node->lock);
+        new_node->is_locked = true;
+        new_node->lock_holder_id = client_id;
+        pthread_mutex_unlock(&new_node->lock);
+        
+        // Append to file (this handles structure lock internally)
+        append_sentence(file, new_node);
+        
         if (snapshot_ready) {
             push_undo(ss, filename, snapshot);
         }
         return ERR_SUCCESS;
     }
 
-    Sentence* sentence = &file->sentences[sentence_num];
+    // Get existing sentence
+    SentenceNode* sentence = get_sentence_by_index(file, sentence_num);
+    if (!sentence) {
+        return ERR_INVALID_SENTENCE;
+    }
 
+    // Try to lock the sentence
     pthread_mutex_lock(&sentence->lock);
 
     if (sentence->is_locked) {
         if (sentence->lock_holder_id == client_id) {
+            // Already locked by this client
             pthread_mutex_unlock(&sentence->lock);
             return ERR_SUCCESS;
         }
+        // Locked by another client
         pthread_mutex_unlock(&sentence->lock);
         return ERR_FILE_LOCKED;
     }
 
-    pthread_rwlock_rdlock(&file->file_lock);
-    rebuild_file_content(file, snapshot);
-    snapshot_ready = true;
-    pthread_rwlock_unlock(&file->file_lock);
-
+    // Lock it
     sentence->is_locked = true;
     sentence->lock_holder_id = client_id;
 
@@ -96,7 +87,10 @@ ErrorCode unlock_sentence(StorageServer* ss, const char* filename, int sentence_
         return ERR_INVALID_SENTENCE;
     }
     
-    Sentence* sent = &file->sentences[sentence_num];
+    SentenceNode* sent = get_sentence_by_index(file, sentence_num);
+    if (!sent) {
+        return ERR_INVALID_SENTENCE;
+    }
     
     pthread_mutex_lock(&sent->lock);
     
@@ -117,160 +111,114 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
         return ERR_FILE_NOT_FOUND;
     }
     
-    // Lock the file for writing
-    pthread_rwlock_wrlock(&file->file_lock);
-    
+    // Validate sentence number
     if (sentence_num < 0 || sentence_num >= file->sentence_count) {
-        // If sentence doesn't exist, create new sentences (fallback for clients that skipped lock)
+        // Auto-create sentence if it's exactly at the end
         if (sentence_num == file->sentence_count) {
-            char snapshot[MAX_CONTENT_SIZE];
-            rebuild_file_content(file, snapshot);
-            push_undo(ss, filename, snapshot);
-
-            // Extend sentence array
-            Sentence* grown = (Sentence*)realloc(file->sentences, 
-                                                (file->sentence_count + 1) * sizeof(Sentence));
-            if (!grown) {
-                pthread_rwlock_unlock(&file->file_lock);
+            SentenceNode* new_node = create_empty_sentence_node();
+            if (!new_node) {
                 return ERR_SYSTEM_ERROR;
             }
-
-            file->sentences = grown;
-            Sentence* new_sent = &file->sentences[file->sentence_count];
-            memset(new_sent, 0, sizeof(Sentence));
-            new_sent->content = strdup("");
-            new_sent->length = 0;
-            new_sent->word_count = 0;
-            new_sent->is_locked = true;
-            new_sent->lock_holder_id = client_id;
-            pthread_mutex_init(&new_sent->lock, NULL);
-            file->sentence_count++;
+            
+            pthread_mutex_lock(&new_node->lock);
+            new_node->is_locked = true;
+            new_node->lock_holder_id = client_id;
+            pthread_mutex_unlock(&new_node->lock);
+            
+            append_sentence(file, new_node);
         } else {
-            pthread_rwlock_unlock(&file->file_lock);
             return ERR_INVALID_SENTENCE;
         }
     }
     
-    Sentence* sent = &file->sentences[sentence_num];
+    // Get the sentence
+    SentenceNode* sent = get_sentence_by_index(file, sentence_num);
+    if (!sent) {
+        return ERR_INVALID_SENTENCE;
+    }
     
     // Check if sentence is locked by this client
     pthread_mutex_lock(&sent->lock);
     if (sent->is_locked && sent->lock_holder_id != client_id) {
         pthread_mutex_unlock(&sent->lock);
-        pthread_rwlock_unlock(&file->file_lock);
         return ERR_FILE_LOCKED;
     }
+    
+    // Perform the word insertion
+    bool success = insert_word_in_sentence(sent, word_index, new_content);
+    
     pthread_mutex_unlock(&sent->lock);
     
-    // Parse current sentence into words
-    char* words[1000];
-    int word_count = 0;
-    char sent_copy[MAX_CONTENT_SIZE];
-    strncpy(sent_copy, sent->content, MAX_CONTENT_SIZE - 1);
-    sent_copy[MAX_CONTENT_SIZE - 1] = '\0';
-    
-    char* token = strtok(sent_copy, " \t\n");
-    while (token && word_count < 1000) {
-        words[word_count++] = strdup(token);
-        token = strtok(NULL, " \t\n");
-    }
-    
-    // INSERT word at index (shift everything right)
-    if (word_index >= 0 && word_index <= word_count) {
-        // Make room for new word by shifting words to the right
-        if (word_count < 1000) {
-            for (int i = word_count; i > word_index; i--) {
-                words[i] = words[i - 1];
-            }
-            words[word_index] = strdup(new_content);
-            word_count++;
-        } else {
-            // Free allocated words
-            for (int i = 0; i < word_count; i++) {
-                free(words[i]);
-            }
-            pthread_rwlock_unlock(&file->file_lock);
-            return ERR_INVALID_OPERATION;
-        }
-    } else {
-        // Free allocated words
-        for (int i = 0; i < word_count; i++) {
-            free(words[i]);
-        }
-        pthread_rwlock_unlock(&file->file_lock);
+    if (!success) {
         return ERR_INVALID_OPERATION;
     }
     
-    // Rebuild sentence with new content
-    char new_sentence[MAX_CONTENT_SIZE] = {0};
-    int offset = 0;
-    
-    for (int i = 0; i < word_count; i++) {
-        if (i > 0) {
-            new_sentence[offset++] = ' ';
-        }
-        strcpy(new_sentence + offset, words[i]);
-        offset += strlen(words[i]);
-        free(words[i]);
-    }
-    
-    // Update sentence content
-    free(sent->content);
-    sent->content = strdup(new_sentence);
-    sent->length = strlen(new_sentence);
-    sent->word_count = count_words(new_sentence);
-    
-    // Check if any delimiter was added - need to reparse entire file
+    // Check if the new word contains delimiters - if so, need to reparse
     bool has_delimiter = false;
-    for (int i = 0; i < sent->length; i++) {
-        if (is_sentence_delimiter(sent->content[i])) {
+    for (size_t i = 0; i < strlen(new_content); i++) {
+        if (is_sentence_delimiter(new_content[i])) {
             has_delimiter = true;
             break;
         }
     }
     
     if (has_delimiter) {
-        // Rebuild full file content
+        // Delimiter added - need to reparse entire file
+        pthread_rwlock_wrlock(&file->file_lock);
+        
+        // Rebuild full content with current state
         char full_content[MAX_CONTENT_SIZE];
         rebuild_file_content(file, full_content);
         
-        // Save old sentence locks state
-        bool* lock_states = (bool*)malloc(file->sentence_count * sizeof(bool));
-        int* lock_holders = (int*)malloc(file->sentence_count * sizeof(int));
-        int old_sentence_count = file->sentence_count;
-        for (int i = 0; i < file->sentence_count; i++) {
-            lock_states[i] = file->sentences[i].is_locked;
-            lock_holders[i] = file->sentences[i].lock_holder_id;
-        }
+        // Save lock states before reparsing
+        typedef struct {
+            bool is_locked;
+            int lock_holder_id;
+        } LockState;
         
-        // Free old sentences
-        for (int i = 0; i < file->sentence_count; i++) {
-            free(file->sentences[i].content);
-            pthread_mutex_destroy(&file->sentences[i].lock);
-        }
-        free(file->sentences);
+        LockState* lock_states = (LockState*)calloc(file->sentence_count, sizeof(LockState));
+        int old_count = file->sentence_count;
         
-        // Reparse with new content (this creates new sentence structures)
+        pthread_mutex_lock(&file->structure_lock);
+        SentenceNode* curr = file->head;
+        int idx = 0;
+        while (curr && idx < old_count) {
+            pthread_mutex_lock(&curr->lock);
+            lock_states[idx].is_locked = curr->is_locked;
+            lock_states[idx].lock_holder_id = curr->lock_holder_id;
+            pthread_mutex_unlock(&curr->lock);
+            curr = curr->next;
+            idx++;
+        }
+        pthread_mutex_unlock(&file->structure_lock);
+        
+        // Reparse (this frees old sentences and creates new ones)
         parse_sentences(file, full_content);
         
-        // Try to restore locks where possible
-        // If a sentence was locked and still exists, keep it locked
-        for (int i = 0; i < old_sentence_count && i < file->sentence_count; i++) {
-            if (lock_states[i]) {
-                file->sentences[i].is_locked = true;
-                file->sentences[i].lock_holder_id = lock_holders[i];
-            }
+        // Restore locks where possible
+        pthread_mutex_lock(&file->structure_lock);
+        curr = file->head;
+        idx = 0;
+        while (curr && idx < old_count && idx < file->sentence_count) {
+            pthread_mutex_lock(&curr->lock);
+            curr->is_locked = lock_states[idx].is_locked;
+            curr->lock_holder_id = lock_states[idx].lock_holder_id;
+            pthread_mutex_unlock(&curr->lock);
+            curr = curr->next;
+            idx++;
         }
+        pthread_mutex_unlock(&file->structure_lock);
         
         free(lock_states);
-        free(lock_holders);
+        
+        pthread_rwlock_unlock(&file->file_lock);
     }
     
-    // Save to disk
+    // Save to disk (acquire file lock for this)
+    pthread_rwlock_rdlock(&file->file_lock);
     refresh_file_stats(file);
     file->last_modified = time(NULL);
     save_file_to_disk(file);
-    
     pthread_rwlock_unlock(&file->file_lock);
     
     char details[256];
@@ -290,35 +238,33 @@ ErrorCode stream_file(StorageServer* ss, int client_fd, const char* filename) {
     }
     
     pthread_rwlock_rdlock(&file->file_lock);
+    pthread_mutex_lock(&file->structure_lock);
     
     // Send file word by word with 0.1s delay
-    for (int i = 0; i < file->sentence_count; i++) {
-        Sentence* sent = &file->sentences[i];
-        
-        // Parse sentence into words
-        char sent_copy[MAX_CONTENT_SIZE];
-        strncpy(sent_copy, sent->content, MAX_CONTENT_SIZE - 1);
-        sent_copy[MAX_CONTENT_SIZE - 1] = '\0';
-        
-        char* token = strtok(sent_copy, " \t\n");
-        while (token) {
-            // Send word
+    SentenceNode* current = file->head;
+    
+    while (current) {
+        // Send each word in the sentence
+        for (int i = 0; i < current->word_count; i++) {
             char word_msg[BUFFER_SIZE];
-            snprintf(word_msg, sizeof(word_msg), "%s\n", token);
+            snprintf(word_msg, sizeof(word_msg), "%s\n", current->words[i]);
             
             ssize_t sent_bytes = send(client_fd, word_msg, strlen(word_msg), MSG_NOSIGNAL);
             if (sent_bytes <= 0) {
                 // Client disconnected
+                pthread_mutex_unlock(&file->structure_lock);
                 pthread_rwlock_unlock(&file->file_lock);
                 return ERR_SYSTEM_ERROR;
             }
             
             // 0.1 second delay
             usleep(100000);
-            
-            token = strtok(NULL, " \t\n");
         }
+        
+        current = current->next;
     }
+    
+    pthread_mutex_unlock(&file->structure_lock);
     
     // Send STOP marker
     send(client_fd, "STOP\n", 5, MSG_NOSIGNAL);
@@ -370,14 +316,7 @@ ErrorCode handle_undo(StorageServer* ss, const char* filename) {
     
     pthread_rwlock_wrlock(&file->file_lock);
     
-    // Free current sentences
-    for (int i = 0; i < file->sentence_count; i++) {
-        free(file->sentences[i].content);
-        pthread_mutex_destroy(&file->sentences[i].lock);
-    }
-    free(file->sentences);
-    
-    // Reparse with undo content
+    // Reparse with undo content (this will free old sentences and create new ones)
     parse_sentences(file, undo_content);
     
     // Save to disk
@@ -461,12 +400,9 @@ void destroy_storage_server(StorageServer* ss) {
     // Free files
     for (int i = 0; i < ss->file_count; i++) {
         if (ss->files[i]) {
-            for (int j = 0; j < ss->files[i]->sentence_count; j++) {
-                free(ss->files[i]->sentences[j].content);
-                pthread_mutex_destroy(&ss->files[i]->sentences[j].lock);
-            }
-            free(ss->files[i]->sentences);
+            free_all_sentences(ss->files[i]);
             pthread_rwlock_destroy(&ss->files[i]->file_lock);
+            pthread_mutex_destroy(&ss->files[i]->structure_lock);
             free(ss->files[i]);
         }
     }

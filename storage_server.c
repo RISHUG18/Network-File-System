@@ -61,7 +61,7 @@ void ensure_storage_dir() {
     }
 }
 
-// ==================== SENTENCE OPERATIONS ====================
+// ==================== UTILITY FUNCTIONS ====================
 
 bool is_sentence_delimiter(char c) {
     return (c == '.' || c == '!' || c == '?');
@@ -87,17 +87,307 @@ int count_words(const char* text) {
     return count;
 }
 
+// ==================== SENTENCE NODE OPERATIONS (LINKED LIST) ====================
+
+SentenceNode* create_sentence_node(const char** word_array, int word_count, char delimiter) {
+    SentenceNode* node = (SentenceNode*)calloc(1, sizeof(SentenceNode));
+    if (!node) {
+        return NULL;
+    }
+    
+    node->word_count = word_count;
+    node->word_capacity = (word_count > 0) ? word_count : 4;
+    node->delimiter = delimiter;
+    node->is_locked = false;
+    node->lock_holder_id = -1;
+    node->next = NULL;
+    node->prev = NULL;
+    
+    pthread_mutex_init(&node->lock, NULL);
+    
+    // Allocate words array
+    if (node->word_capacity > 0) {
+        node->words = (char**)calloc(node->word_capacity, sizeof(char*));
+        if (!node->words) {
+            pthread_mutex_destroy(&node->lock);
+            free(node);
+            return NULL;
+        }
+        
+        // Copy words
+        for (int i = 0; i < word_count; i++) {
+            node->words[i] = strdup(word_array[i]);
+            if (!node->words[i]) {
+                // Cleanup on failure
+                for (int j = 0; j < i; j++) {
+                    free(node->words[j]);
+                }
+                free(node->words);
+                pthread_mutex_destroy(&node->lock);
+                free(node);
+                return NULL;
+            }
+        }
+    } else {
+        node->words = NULL;
+    }
+    
+    return node;
+}
+
+SentenceNode* create_empty_sentence_node() {
+    SentenceNode* node = (SentenceNode*)calloc(1, sizeof(SentenceNode));
+    if (!node) {
+        return NULL;
+    }
+    
+    node->word_count = 0;
+    node->word_capacity = 4;
+    node->delimiter = '\0';
+    node->is_locked = false;
+    node->lock_holder_id = -1;
+    node->next = NULL;
+    node->prev = NULL;
+    
+    pthread_mutex_init(&node->lock, NULL);
+    
+    node->words = (char**)calloc(node->word_capacity, sizeof(char*));
+    if (!node->words) {
+        pthread_mutex_destroy(&node->lock);
+        free(node);
+        return NULL;
+    }
+    
+    return node;
+}
+
+void free_sentence_node(SentenceNode* node) {
+    if (!node) return;
+    
+    // Free all words
+    if (node->words) {
+        for (int i = 0; i < node->word_count; i++) {
+            if (node->words[i]) {
+                free(node->words[i]);
+            }
+        }
+        free(node->words);
+    }
+    
+    pthread_mutex_destroy(&node->lock);
+    free(node);
+}
+
+void append_sentence(FileEntry* file, SentenceNode* node) {
+    if (!file || !node) return;
+    
+    // Lock structure modification
+    pthread_mutex_lock(&file->structure_lock);
+    
+    if (!file->head) {
+        // First sentence
+        file->head = node;
+        file->tail = node;
+        node->prev = NULL;
+        node->next = NULL;
+    } else {
+        // Append to tail
+        node->prev = file->tail;
+        node->next = NULL;
+        file->tail->next = node;
+        file->tail = node;
+    }
+    
+    file->sentence_count++;
+    
+    pthread_mutex_unlock(&file->structure_lock);
+}
+
+void insert_sentence_after(FileEntry* file, SentenceNode* prev, SentenceNode* new_node) {
+    if (!file || !new_node) return;
+    
+    pthread_mutex_lock(&file->structure_lock);
+    
+    if (!prev || !file->head) {
+        // Insert at beginning if prev is NULL
+        new_node->next = file->head;
+        new_node->prev = NULL;
+        
+        if (file->head) {
+            file->head->prev = new_node;
+        } else {
+            file->tail = new_node;
+        }
+        
+        file->head = new_node;
+    } else {
+        // Insert after prev
+        new_node->next = prev->next;
+        new_node->prev = prev;
+        
+        if (prev->next) {
+            prev->next->prev = new_node;
+        } else {
+            file->tail = new_node;
+        }
+        
+        prev->next = new_node;
+    }
+    
+    file->sentence_count++;
+    
+    pthread_mutex_unlock(&file->structure_lock);
+}
+
+void delete_sentence_node(FileEntry* file, SentenceNode* node) {
+    if (!file || !node) return;
+    
+    pthread_mutex_lock(&file->structure_lock);
+    
+    // Update links
+    if (node->prev) {
+        node->prev->next = node->next;
+    } else {
+        // Deleting head
+        file->head = node->next;
+    }
+    
+    if (node->next) {
+        node->next->prev = node->prev;
+    } else {
+        // Deleting tail
+        file->tail = node->prev;
+    }
+    
+    file->sentence_count--;
+    
+    pthread_mutex_unlock(&file->structure_lock);
+    
+    // Free the node (done outside structure lock to avoid holding lock too long)
+    free_sentence_node(node);
+}
+
+SentenceNode* get_sentence_by_index(FileEntry* file, int index) {
+    if (!file || index < 0) return NULL;
+    
+    pthread_mutex_lock(&file->structure_lock);
+    
+    SentenceNode* current = file->head;
+    int i = 0;
+    
+    while (current && i < index) {
+        current = current->next;
+        i++;
+    }
+    
+    pthread_mutex_unlock(&file->structure_lock);
+    
+    return current;
+}
+
+void free_all_sentences(FileEntry* file) {
+    if (!file) return;
+    
+    pthread_mutex_lock(&file->structure_lock);
+    
+    SentenceNode* current = file->head;
+    while (current) {
+        SentenceNode* next = current->next;
+        free_sentence_node(current);
+        current = next;
+    }
+    
+    file->head = NULL;
+    file->tail = NULL;
+    file->sentence_count = 0;
+    
+    pthread_mutex_unlock(&file->structure_lock);
+}
+
+// ==================== WORD OPERATIONS WITHIN SENTENCE ====================
+
+bool insert_word_in_sentence(SentenceNode* sentence, int index, const char* word) {
+    if (!sentence || !word || index < 0 || index > sentence->word_count) {
+        return false;
+    }
+    
+    // Expand capacity if needed
+    if (sentence->word_count >= sentence->word_capacity) {
+        int new_capacity = sentence->word_capacity * 2;
+        char** new_words = (char**)realloc(sentence->words, new_capacity * sizeof(char*));
+        if (!new_words) {
+            return false;
+        }
+        sentence->words = new_words;
+        sentence->word_capacity = new_capacity;
+    }
+    
+    // Shift words to the right
+    for (int i = sentence->word_count; i > index; i--) {
+        sentence->words[i] = sentence->words[i - 1];
+    }
+    
+    // Insert new word
+    sentence->words[index] = strdup(word);
+    if (!sentence->words[index]) {
+        // Shift back on failure
+        for (int i = index; i < sentence->word_count; i++) {
+            sentence->words[i] = sentence->words[i + 1];
+        }
+        return false;
+    }
+    
+    sentence->word_count++;
+    return true;
+}
+
+bool delete_word_in_sentence(SentenceNode* sentence, int index) {
+    if (!sentence || index < 0 || index >= sentence->word_count) {
+        return false;
+    }
+    
+    // Free the word
+    free(sentence->words[index]);
+    
+    // Shift words to the left
+    for (int i = index; i < sentence->word_count - 1; i++) {
+        sentence->words[i] = sentence->words[i + 1];
+    }
+    
+    sentence->word_count--;
+    sentence->words[sentence->word_count] = NULL;
+    
+    return true;
+}
+
+bool replace_word_in_sentence(SentenceNode* sentence, int index, const char* word) {
+    if (!sentence || !word || index < 0 || index >= sentence->word_count) {
+        return false;
+    }
+    
+    char* new_word = strdup(word);
+    if (!new_word) {
+        return false;
+    }
+    
+    free(sentence->words[index]);
+    sentence->words[index] = new_word;
+    
+    return true;
+}
+
 void parse_sentences(FileEntry* file, const char* content) {
+    if (!file) return;
+    
+    // Clear existing sentences
+    free_all_sentences(file);
+    
     if (!content || strlen(content) == 0) {
         // Create one empty sentence for new files
-        file->sentence_count = 1;
-        file->sentences = (Sentence*)calloc(1, sizeof(Sentence));
-        file->sentences[0].content = strdup("");
-        file->sentences[0].length = 0;
-        file->sentences[0].word_count = 0;
-        file->sentences[0].is_locked = false;
-        file->sentences[0].lock_holder_id = -1;
-        pthread_mutex_init(&file->sentences[0].lock, NULL);
+        SentenceNode* node = create_empty_sentence_node();
+        if (node) {
+            append_sentence(file, node);
+        }
         file->total_size = 0;
         file->total_words = 0;
         file->total_chars = 0;
@@ -105,12 +395,10 @@ void parse_sentences(FileEntry* file, const char* content) {
     }
     
     size_t len = strlen(content);
-    Sentence* sentences = NULL;
-    int capacity = 0;
-    int count = 0;
-
     size_t index = 0;
+    
     while (index < len) {
+        // Skip leading whitespace
         while (index < len && (content[index] == ' ' || content[index] == '\n' || content[index] == '\t')) {
             index++;
         }
@@ -126,147 +414,147 @@ void parse_sentences(FileEntry* file, const char* content) {
             index++;
         }
 
-        bool has_delimiter = (index < len && is_sentence_delimiter(content[index]));
-        size_t end = index;
-
-        if (has_delimiter) {
-            end++; // include delimiter
-            index++; // move past delimiter
+        char delimiter = '\0';
+        if (index < len && is_sentence_delimiter(content[index])) {
+            delimiter = content[index];
+            index++; // Move past delimiter
         }
 
-        size_t sentence_len = end - start;
-
-        // Skip whitespace before the next sentence
-        while (index < len && (content[index] == ' ' || content[index] == '\n' || content[index] == '\t')) {
-            index++;
-        }
-
-        // Ignore empty segments caused by consecutive delimiters or whitespace
+        // Extract sentence text (without delimiter)
+        size_t sentence_len = (delimiter != '\0') ? (index - start - 1) : (index - start);
+        
+        // Skip if empty
         if (sentence_len == 0) {
             continue;
         }
 
-        if (count == capacity) {
-            int new_capacity = (capacity == 0) ? 4 : capacity * 2;
-            Sentence* resized = (Sentence*)realloc(sentences, new_capacity * sizeof(Sentence));
-            if (!resized) {
-                for (int i = 0; i < count; i++) {
-                    free(sentences[i].content);
-                    pthread_mutex_destroy(&sentences[i].lock);
-                }
-                free(sentences);
+        // Extract and parse words from sentence
+        char sentence_text[MAX_CONTENT_SIZE];
+        if (sentence_len >= MAX_CONTENT_SIZE) {
+            sentence_len = MAX_CONTENT_SIZE - 1;
+        }
+        memcpy(sentence_text, content + start, sentence_len);
+        sentence_text[sentence_len] = '\0';
 
-                sentences = (Sentence*)calloc(1, sizeof(Sentence));
-                sentences[0].content = strdup("");
-                sentences[0].length = 0;
-                sentences[0].word_count = 0;
-                sentences[0].is_locked = false;
-                sentences[0].lock_holder_id = -1;
-                pthread_mutex_init(&sentences[0].lock, NULL);
-
-                file->sentences = sentences;
-                file->sentence_count = 1;
-                refresh_file_stats(file);
-                return;
-            }
-            sentences = resized;
-            capacity = new_capacity;
+        // Parse into words
+        char* words[1000];
+        int word_count = 0;
+        
+        char sentence_copy[MAX_CONTENT_SIZE];
+        strncpy(sentence_copy, sentence_text, MAX_CONTENT_SIZE - 1);
+        sentence_copy[MAX_CONTENT_SIZE - 1] = '\0';
+        
+        char* token = strtok(sentence_copy, " \t\n");
+        while (token && word_count < 1000) {
+            words[word_count++] = token;
+            token = strtok(NULL, " \t\n");
         }
 
-        Sentence* sentence = &sentences[count];
-        memset(sentence, 0, sizeof(Sentence));
-
-        sentence->content = (char*)malloc(sentence_len + 1);
-        memcpy(sentence->content, content + start, sentence_len);
-        sentence->content[sentence_len] = '\0';
-        sentence->length = (int)sentence_len;
-        sentence->word_count = count_words(sentence->content);
-        sentence->is_locked = false;
-        sentence->lock_holder_id = -1;
-        pthread_mutex_init(&sentence->lock, NULL);
-
-        count++;
+        // Create sentence node
+        if (word_count > 0) {
+            SentenceNode* node = create_sentence_node((const char**)words, word_count, delimiter);
+            if (node) {
+                append_sentence(file, node);
+            }
+        }
     }
 
-    if (count == 0) {
-        // Fallback to single empty sentence if parsing produced nothing
-        sentences = (Sentence*)calloc(1, sizeof(Sentence));
-        sentences[0].content = strdup("");
-        sentences[0].length = 0;
-        sentences[0].word_count = 0;
-        sentences[0].is_locked = false;
-        sentences[0].lock_holder_id = -1;
-        pthread_mutex_init(&sentences[0].lock, NULL);
-        count = 1;
+    // If no sentences were parsed, create one empty sentence
+    if (file->sentence_count == 0) {
+        SentenceNode* node = create_empty_sentence_node();
+        if (node) {
+            append_sentence(file, node);
+        }
     }
 
-    file->sentences = sentences;
-    file->sentence_count = count;
     refresh_file_stats(file);
 }
 
 void rebuild_file_content(FileEntry* file, char* content) {
+    if (!file || !content) return;
+    
     size_t offset = 0;
     content[0] = '\0';
     
-    for (int i = 0; i < file->sentence_count; i++) {
-        Sentence* sentence = &file->sentences[i];
-        if (!sentence->content) {
-            continue;
+    pthread_mutex_lock(&file->structure_lock);
+    
+    SentenceNode* current = file->head;
+    bool first = true;
+    
+    while (current) {
+        // Add space before sentence (except first)
+        if (!first && offset > 0 && content[offset - 1] != ' ') {
+            content[offset++] = ' ';
         }
-
-        if (sentence->length > 0) {
-            memcpy(content + offset, sentence->content, sentence->length);
-            offset += (size_t)sentence->length;
-            content[offset] = '\0';
-        }
-
-        bool add_space = false;
-        if (i < file->sentence_count - 1) {
-            Sentence* next_sentence = &file->sentences[i + 1];
-            if (sentence->length > 0 &&
-                sentence->content[sentence->length - 1] != ' ' &&
-                next_sentence->content && next_sentence->length > 0) {
-                add_space = true;
+        first = false;
+        
+        // Add all words in sentence
+        for (int i = 0; i < current->word_count; i++) {
+            if (i > 0) {
+                content[offset++] = ' ';
+            }
+            
+            const char* word = current->words[i];
+            size_t word_len = strlen(word);
+            
+            if (offset + word_len < MAX_CONTENT_SIZE - 2) {
+                memcpy(content + offset, word, word_len);
+                offset += word_len;
             }
         }
-
-        if (add_space) {
-            content[offset++] = ' ';
-            content[offset] = '\0';
+        
+        // Add delimiter if present
+        if (current->delimiter != '\0') {
+            content[offset++] = current->delimiter;
         }
+        
+        current = current->next;
     }
-
+    
+    pthread_mutex_unlock(&file->structure_lock);
+    
     content[offset] = '\0';
 }
 
 void refresh_file_stats(FileEntry* file) {
+    if (!file) return;
+    
     size_t total_chars = 0;
     int total_words = 0;
-
-    for (int i = 0; i < file->sentence_count; i++) {
-        Sentence* sentence = &file->sentences[i];
-        if (!sentence->content) {
-            continue;
+    
+    pthread_mutex_lock(&file->structure_lock);
+    
+    SentenceNode* current = file->head;
+    bool first = true;
+    
+    while (current) {
+        // Count space before sentence (except first)
+        if (!first) {
+            total_chars += 1;
         }
-
-        if (sentence->length > 0) {
-            total_chars += (size_t)sentence->length;
-        }
-
-        total_words += sentence->word_count;
-
-        if (i < file->sentence_count - 1) {
-            Sentence* next_sentence = &file->sentences[i + 1];
-            if (sentence->length > 0 &&
-                sentence->content[sentence->length - 1] != ' ' &&
-                next_sentence->content && next_sentence->length > 0) {
-                total_chars += 1;
+        first = false;
+        
+        // Count words and characters
+        total_words += current->word_count;
+        
+        for (int i = 0; i < current->word_count; i++) {
+            if (i > 0) {
+                total_chars += 1; // Space between words
             }
+            total_chars += strlen(current->words[i]);
         }
+        
+        // Count delimiter
+        if (current->delimiter != '\0') {
+            total_chars += 1;
+        }
+        
+        current = current->next;
     }
-
-    file->total_chars = total_chars;
+    
+    pthread_mutex_unlock(&file->structure_lock);
+    
+    file->total_chars = (int)total_chars;
     file->total_size = total_chars;
     file->total_words = total_words;
 }
@@ -445,17 +733,10 @@ FileEntry* create_file(StorageServer* ss, const char* filename) {
     
     snprintf(file->filepath, sizeof(file->filepath), "%s/%s", STORAGE_DIR, filename);
     
-    // Initialize with one empty sentence
-    file->sentences = (Sentence*)malloc(sizeof(Sentence));
-    file->sentence_count = 1;
-    
-    // Initialize the first sentence
-    file->sentences[0].content = strdup("");
-    file->sentences[0].length = 0;
-    file->sentences[0].word_count = 0;
-    file->sentences[0].is_locked = false;
-    file->sentences[0].lock_holder_id = -1;
-    pthread_mutex_init(&file->sentences[0].lock, NULL);
+    // Initialize empty linked list
+    file->head = NULL;
+    file->tail = NULL;
+    file->sentence_count = 0;
     
     file->total_size = 0;
     file->total_words = 0;
@@ -464,6 +745,13 @@ FileEntry* create_file(StorageServer* ss, const char* filename) {
     file->last_accessed = time(NULL);
     
     pthread_rwlock_init(&file->file_lock, NULL);
+    pthread_mutex_init(&file->structure_lock, NULL);
+    
+    // Create one empty sentence
+    SentenceNode* empty_node = create_empty_sentence_node();
+    if (empty_node) {
+        append_sentence(file, empty_node);
+    }
     
     // Create empty file on disk
     FILE* fp = fopen(file->filepath, "w");
@@ -492,16 +780,11 @@ ErrorCode delete_file(StorageServer* ss, const char* filename) {
             // Delete file from disk
             unlink(file->filepath);
             
-            // Free sentences
-            for (int j = 0; j < file->sentence_count; j++) {
-                if (file->sentences[j].content) {
-                    free(file->sentences[j].content);
-                }
-                pthread_mutex_destroy(&file->sentences[j].lock);
-            }
-            free(file->sentences);
+            // Free all sentences in linked list
+            free_all_sentences(file);
             
             pthread_rwlock_destroy(&file->file_lock);
+            pthread_mutex_destroy(&file->structure_lock);
             free(file);
             
             // Shift array

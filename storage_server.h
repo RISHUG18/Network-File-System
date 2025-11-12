@@ -38,26 +38,31 @@ typedef enum {
     ERR_SYSTEM_ERROR = 99
 } ErrorCode;
 
-// Sentence structure
-typedef struct Sentence {
-    char* content;
-    int length;
-    int word_count;
-    pthread_mutex_t lock;
+// Sentence Node - Doubly Linked List
+typedef struct SentenceNode {
+    char** words;                    // Dynamic array of words
+    int word_count;                  // Number of words in sentence
+    int word_capacity;               // Allocated capacity for words array
+    char delimiter;                  // Sentence ending: '.', '!', '?', or '\0'
+    pthread_mutex_t lock;            // Sentence-level lock for concurrent access
     bool is_locked;
-    int lock_holder_id;  // Client ID holding the lock
-} Sentence;
+    int lock_holder_id;              // Client ID holding the lock
+    struct SentenceNode* next;       // Next sentence in list
+    struct SentenceNode* prev;       // Previous sentence in list
+} SentenceNode;
 
-// File structure
+// File structure with Linked List
 typedef struct FileEntry {
     char filename[MAX_FILENAME];
     char filepath[MAX_PATH];
-    Sentence* sentences;
-    int sentence_count;
+    SentenceNode* head;              // First sentence (linked list head)
+    SentenceNode* tail;              // Last sentence (linked list tail)
+    int sentence_count;              // Total number of sentences
     size_t total_size;
     int total_words;
     int total_chars;
-    pthread_rwlock_t file_lock;  // Reader-writer lock for file
+    pthread_rwlock_t file_lock;      // Reader-writer lock for file-level operations
+    pthread_mutex_t structure_lock;  // Protects linked list structure modifications
     time_t last_modified;
     time_t last_accessed;
 } FileEntry;
@@ -126,12 +131,27 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
 ErrorCode lock_sentence(StorageServer* ss, const char* filename, int sentence_num, int client_id);
 ErrorCode unlock_sentence(StorageServer* ss, const char* filename, int sentence_num, int client_id);
 
+// Sentence Node Operations (Linked List)
+SentenceNode* create_sentence_node(const char** word_array, int word_count, char delimiter);
+SentenceNode* create_empty_sentence_node();
+void append_sentence(FileEntry* file, SentenceNode* node);
+void insert_sentence_after(FileEntry* file, SentenceNode* prev, SentenceNode* new_node);
+void delete_sentence_node(FileEntry* file, SentenceNode* node);
+SentenceNode* get_sentence_by_index(FileEntry* file, int index);
+void free_sentence_node(SentenceNode* node);
+void free_all_sentences(FileEntry* file);
+
 // Sentence parsing
 void parse_sentences(FileEntry* file, const char* content);
 void rebuild_file_content(FileEntry* file, char* content);
 void refresh_file_stats(FileEntry* file);
 int count_words(const char* text);
 bool is_sentence_delimiter(char c);
+
+// Word operations within sentence
+bool insert_word_in_sentence(SentenceNode* sentence, int index, const char* word);
+bool delete_word_in_sentence(SentenceNode* sentence, int index);
+bool replace_word_in_sentence(SentenceNode* sentence, int index, const char* word);
 
 // Undo operations
 void push_undo(StorageServer* ss, const char* filename, const char* content);
