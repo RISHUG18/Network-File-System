@@ -1,0 +1,401 @@
+[2025-11-14 14:32:47] [INFO] INIT - Name Server initialized
+Name Server initialized on port 8080
+Name Server started on port 8080
+Waiting for connections...
+
+[2025-11-14 14:32:48] [INFO] SS_REGISTER - SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=0
+Storage Server 0 registered: 127.0.0.1:9002 (Files: 0)
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=0 IP=127.0.0.1 NM_Port=9100 SS_Port=9200
+Client 0 registered: user1@127.0.0.1:9100
+[2025-11-14 14:32:52] [INFO] CREATE - File=file1.txt SS_ID=0
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=0
+Client 0 (user1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=1 IP=127.0.0.1 NM_Port=9101 SS_Port=9201
+Client 1 registered: user1@127.0.0.1:9101
+[2025-11-14 14:32:52] [INFO] CREATE - File=file2.txt SS_ID=0
+[2025-11-14 14:32:52] [INFO] CREATE - File=file3.txt SS_ID=0
+[2025-11-14 14:32:52] [INFO] CREATE - File=file4.txt SS_ID=0
+[2025-11-14 14:32:52] [INFO] CREATE - File=file5.txt SS_ID=0
+[2025-11-14 14:32:52] [INFO] CREATE - File=file6.txt SS_ID=0
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=1
+Client 1 (user1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=2 IP=127.0.0.1 NM_Port=9102 SS_Port=9202
+Client 2 registered: user1@127.0.0.1:9102
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=2
+Client 2 (user1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=3 IP=127.0.0.1 NM_Port=9300 SS_Port=9400
+Client 3 registered: user0@127.0.0.1:9300
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=4 IP=127.0.0.1 NM_Port=9301 SS_Port=9401
+Client 4 registered: user1@127.0.0.1:9301
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=5 IP=127.0.0.1 NM_Port=9302 SS_Port=9402
+Client 5 registered: user2@127.0.0.1:9302
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=6 IP=127.0.0.1 NM_Port=9303 SS_Port=9403
+Client 6 registered: user3@127.0.0.1:9303
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=7 IP=127.0.0.1 NM_Port=9304 SS_Port=9404
+Client 7 registered: user4@127.0.0.1:9304
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=8 IP=127.0.0.1 NM_Port=9305 SS_Port=9405
+Client 8 registered: user5@127.0.0.1:9305
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=9 IP=127.0.0.1 NM_Port=9306 SS_Port=9406
+Client 9 registered: user6@127.0.0.1:9306
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=10 IP=127.0.0.1 NM_Port=9307 SS_Port=9407
+Client 10 registered: user7@127.0.0.1:9307
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=11 IP=127.0.0.1 NM_Port=9308 SS_Port=9408
+Client 11 registered: user8@127.0.0.1:9308
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=12 IP=127.0.0.1 NM_Port=9309 SS_Port=9409
+Client 12 registered: user9@127.0.0.1:9309
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=4
+Client 4 (user1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=6
+Client 6 (user3) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=5
+Client 5 (user2) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=7
+Client 7 (user4) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=3
+Client 3 (user0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=8
+Client 8 (user5) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=9
+Client 9 (user6) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=10
+Client 10 (user7) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=11
+Client 11 (user8) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=12
+Client 12 (user9) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=13 IP=127.0.0.1 NM_Port=9501 SS_Port=9601
+Client 13 registered: concurrent_user1@127.0.0.1:9501
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=14 IP=127.0.0.1 NM_Port=9500 SS_Port=9600
+Client 14 registered: concurrent_user0@127.0.0.1:9500
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=13
+Client 13 (concurrent_user1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=14
+Client 14 (concurrent_user0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=15 IP=127.0.0.1 NM_Port=9503 SS_Port=9603
+Client 15 registered: concurrent_user3@127.0.0.1:9503
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=16 IP=127.0.0.1 NM_Port=9502 SS_Port=9602
+Client 16 registered: concurrent_user2@127.0.0.1:9502
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=15
+Client 15 (concurrent_user3) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=16
+Client 16 (concurrent_user2) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=17 IP=127.0.0.1 NM_Port=9504 SS_Port=9604
+Client 17 registered: concurrent_user4@127.0.0.1:9504
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=18 IP=127.0.0.1 NM_Port=9505 SS_Port=9605
+Client 18 registered: concurrent_user5@127.0.0.1:9505
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=18
+Client 18 (concurrent_user5) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=17
+Client 17 (concurrent_user4) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=19 IP=127.0.0.1 NM_Port=9506 SS_Port=9606
+Client 19 registered: concurrent_user6@127.0.0.1:9506
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=19
+Client 19 (concurrent_user6) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=20 IP=127.0.0.1 NM_Port=9509 SS_Port=9609
+Client 20 registered: concurrent_user9@127.0.0.1:9509
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=21 IP=127.0.0.1 NM_Port=9508 SS_Port=9608
+Client 21 registered: concurrent_user8@127.0.0.1:9508
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=20
+Client 20 (concurrent_user9) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=21
+Client 21 (concurrent_user8) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=22 IP=127.0.0.1 NM_Port=9512 SS_Port=9612
+Client 22 registered: concurrent_user12@127.0.0.1:9512
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=23 IP=127.0.0.1 NM_Port=9511 SS_Port=9611
+Client 23 registered: concurrent_user11@127.0.0.1:9511
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=24 IP=127.0.0.1 NM_Port=9507 SS_Port=9607
+Client 24 registered: concurrent_user7@127.0.0.1:9507
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=22
+Client 22 (concurrent_user12) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=25 IP=127.0.0.1 NM_Port=9513 SS_Port=9613
+Client 25 registered: concurrent_user13@127.0.0.1:9513
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=23
+Client 23 (concurrent_user11) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=24
+Client 24 (concurrent_user7) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=26 IP=127.0.0.1 NM_Port=9510 SS_Port=9610
+Client 26 registered: concurrent_user10@127.0.0.1:9510
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=25
+Client 25 (concurrent_user13) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=27 IP=127.0.0.1 NM_Port=9514 SS_Port=9614
+Client 27 registered: concurrent_user14@127.0.0.1:9514
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=26
+Client 26 (concurrent_user10) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=27
+Client 27 (concurrent_user14) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=28 IP=127.0.0.1 NM_Port=9700 SS_Port=9800
+Client 28 registered: reader0@127.0.0.1:9700
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=29 IP=127.0.0.1 NM_Port=9701 SS_Port=9801
+Client 29 registered: reader1@127.0.0.1:9701
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=30 IP=127.0.0.1 NM_Port=9702 SS_Port=9802
+Client 30 registered: reader2@127.0.0.1:9702
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=31 IP=127.0.0.1 NM_Port=9703 SS_Port=9803
+Client 31 registered: reader3@127.0.0.1:9703
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=31
+Client 31 (reader3) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=29
+Client 29 (reader1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=32 IP=127.0.0.1 NM_Port=9704 SS_Port=9804
+Client 32 registered: reader4@127.0.0.1:9704
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=30
+Client 30 (reader2) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=28
+Client 28 (reader0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=33 IP=127.0.0.1 NM_Port=9705 SS_Port=9805
+Client 33 registered: reader5@127.0.0.1:9705
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=34 IP=127.0.0.1 NM_Port=9706 SS_Port=9806
+Client 34 registered: reader6@127.0.0.1:9706
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=32
+Client 32 (reader4) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=35 IP=127.0.0.1 NM_Port=9707 SS_Port=9807
+Client 35 registered: reader7@127.0.0.1:9707
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=36 IP=127.0.0.1 NM_Port=9708 SS_Port=9808
+Client 36 registered: reader8@127.0.0.1:9708
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=35
+Client 35 (reader7) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=37 IP=127.0.0.1 NM_Port=9709 SS_Port=9809
+Client 37 registered: reader9@127.0.0.1:9709
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=34
+Client 34 (reader6) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=33
+Client 33 (reader5) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=36
+Client 36 (reader8) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=37
+Client 37 (reader9) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=38 IP=127.0.0.1 NM_Port=9700 SS_Port=9800
+Client 38 registered: reader0@127.0.0.1:9700
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=39 IP=127.0.0.1 NM_Port=9703 SS_Port=9803
+Client 39 registered: reader3@127.0.0.1:9703
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=40 IP=127.0.0.1 NM_Port=9705 SS_Port=9805
+Client 40 registered: reader5@127.0.0.1:9705
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=41 IP=127.0.0.1 NM_Port=9702 SS_Port=9802
+Client 41 registered: reader2@127.0.0.1:9702
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=38
+Client 38 (reader0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=40
+Client 40 (reader5) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=42 IP=127.0.0.1 NM_Port=9704 SS_Port=9804
+Client 42 registered: reader4@127.0.0.1:9704
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=39
+Client 39 (reader3) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=43 IP=127.0.0.1 NM_Port=9701 SS_Port=9801
+Client 43 registered: reader1@127.0.0.1:9701
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=41
+Client 41 (reader2) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=44 IP=127.0.0.1 NM_Port=9706 SS_Port=9806
+Client 44 registered: reader6@127.0.0.1:9706
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=42
+Client 42 (reader4) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=45 IP=127.0.0.1 NM_Port=9708 SS_Port=9808
+Client 45 registered: reader8@127.0.0.1:9708
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=44
+Client 44 (reader6) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=43
+Client 43 (reader1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=46 IP=127.0.0.1 NM_Port=9709 SS_Port=9809
+Client 46 registered: reader9@127.0.0.1:9709
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=47 IP=127.0.0.1 NM_Port=9707 SS_Port=9807
+Client 47 registered: reader7@127.0.0.1:9707
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=45
+Client 45 (reader8) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=47
+Client 47 (reader7) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=46
+Client 46 (reader9) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=48 IP=127.0.0.1 NM_Port=10001 SS_Port=10101
+Client 48 registered: stress_reader1@127.0.0.1:10001
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=49 IP=127.0.0.1 NM_Port=10002 SS_Port=10102
+Client 49 registered: stress_reader2@127.0.0.1:10002
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=50 IP=127.0.0.1 NM_Port=10000 SS_Port=10100
+Client 50 registered: stress_reader0@127.0.0.1:10000
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=48
+Client 48 (stress_reader1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=49
+Client 49 (stress_reader2) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=51 IP=127.0.0.1 NM_Port=10003 SS_Port=10103
+Client 51 registered: stress_reader3@127.0.0.1:10003
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=52 IP=127.0.0.1 NM_Port=10007 SS_Port=10107
+Client 52 registered: stress_reader7@127.0.0.1:10007
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=53 IP=127.0.0.1 NM_Port=10005 SS_Port=10105
+Client 53 registered: stress_reader5@127.0.0.1:10005
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=54 IP=127.0.0.1 NM_Port=10004 SS_Port=10104
+Client 54 registered: stress_reader4@127.0.0.1:10004
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=52
+Client 52 (stress_reader7) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=53
+Client 53 (stress_reader5) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=55 IP=127.0.0.1 NM_Port=10009 SS_Port=10109
+Client 55 registered: stress_reader9@127.0.0.1:10009
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=57 IP=127.0.0.1 NM_Port=10006 SS_Port=10106
+Client 57 registered: stress_reader6@127.0.0.1:10006
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=50
+Client 50 (stress_reader0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=56 IP=127.0.0.1 NM_Port=10008 SS_Port=10108
+Client 56 registered: stress_reader8@127.0.0.1:10008
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=54
+Client 54 (stress_reader4) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=51
+Client 51 (stress_reader3) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=55
+Client 55 (stress_reader9) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=57
+Client 57 (stress_reader6) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=56
+Client 56 (stress_reader8) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=58 IP=127.0.0.1 NM_Port=10011 SS_Port=10111
+Client 58 registered: stress_reader11@127.0.0.1:10011
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=59 IP=127.0.0.1 NM_Port=10010 SS_Port=10110
+Client 59 registered: stress_reader10@127.0.0.1:10010
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=60 IP=127.0.0.1 NM_Port=10013 SS_Port=10113
+Client 60 registered: stress_reader13@127.0.0.1:10013
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=61 IP=127.0.0.1 NM_Port=10012 SS_Port=10112
+Client 61 registered: stress_reader12@127.0.0.1:10012
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=62 IP=127.0.0.1 NM_Port=10016 SS_Port=10116
+Client 62 registered: stress_reader16@127.0.0.1:10016
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=63 IP=127.0.0.1 NM_Port=10015 SS_Port=10115
+Client 63 registered: stress_reader15@127.0.0.1:10015
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=64 IP=127.0.0.1 NM_Port=10014 SS_Port=10114
+Client 64 registered: stress_reader14@127.0.0.1:10014
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=65 IP=127.0.0.1 NM_Port=10017 SS_Port=10117
+Client 65 registered: stress_reader17@127.0.0.1:10017
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=58
+Client 58 (stress_reader11) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=66 IP=127.0.0.1 NM_Port=10019 SS_Port=10119
+Client 66 registered: stress_reader19@127.0.0.1:10019
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=67 IP=127.0.0.1 NM_Port=10018 SS_Port=10118
+Client 67 registered: stress_reader18@127.0.0.1:10018
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=59
+Client 59 (stress_reader10) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=62
+Client 62 (stress_reader16) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=65
+Client 65 (stress_reader17) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=61
+Client 61 (stress_reader12) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=60
+Client 60 (stress_reader13) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=63
+Client 63 (stress_reader15) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=67
+Client 67 (stress_reader18) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=64
+Client 64 (stress_reader14) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=66
+Client 66 (stress_reader19) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=68 IP=127.0.0.1 NM_Port=10201 SS_Port=10301
+Client 68 registered: multi_reader1@127.0.0.1:10201
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=69 IP=127.0.0.1 NM_Port=10203 SS_Port=10303
+Client 69 registered: multi_reader3@127.0.0.1:10203
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=68
+Client 68 (multi_reader1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=70 IP=127.0.0.1 NM_Port=10202 SS_Port=10302
+Client 70 registered: multi_reader2@127.0.0.1:10202
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=71 IP=127.0.0.1 NM_Port=10204 SS_Port=10304
+Client 71 registered: multi_reader4@127.0.0.1:10204
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=72 IP=127.0.0.1 NM_Port=10200 SS_Port=10300
+Client 72 registered: multi_reader0@127.0.0.1:10200
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=70
+Client 70 (multi_reader2) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=69
+Client 69 (multi_reader3) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=71
+Client 71 (multi_reader4) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=72
+Client 72 (multi_reader0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=73 IP=127.0.0.1 NM_Port=10400 SS_Port=10500
+Client 73 registered: writer0@127.0.0.1:10400
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=74 IP=127.0.0.1 NM_Port=10401 SS_Port=10501
+Client 74 registered: writer1@127.0.0.1:10401
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=73
+Client 73 (writer0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=75 IP=127.0.0.1 NM_Port=10403 SS_Port=10503
+Client 75 registered: writer3@127.0.0.1:10403
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=77 IP=127.0.0.1 NM_Port=10404 SS_Port=10504
+Client 77 registered: writer4@127.0.0.1:10404
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=76 IP=127.0.0.1 NM_Port=10402 SS_Port=10502
+Client 76 registered: writer2@127.0.0.1:10402
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=75
+Client 75 (writer3) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=77
+Client 77 (writer4) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=74
+Client 74 (writer1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=76
+Client 76 (writer2) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=78 IP=127.0.0.1 NM_Port=10600 SS_Port=10700
+Client 78 registered: locker0@127.0.0.1:10600
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=78
+Client 78 (locker0) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=79 IP=127.0.0.1 NM_Port=10601 SS_Port=10701
+Client 79 registered: locker1@127.0.0.1:10601
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=79
+Client 79 (locker1) disconnected
+[2025-11-14 14:32:52] [INFO] CLIENT_REGISTER - Client_ID=80 IP=127.0.0.1 NM_Port=10602 SS_Port=10702
+Client 80 registered: locker2@127.0.0.1:10602
+[2025-11-14 14:32:52] [INFO] CLIENT_DISCONNECT - Client_ID=80
+Client 80 (locker2) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=81 IP=127.0.0.1 NM_Port=10603 SS_Port=10703
+Client 81 registered: locker3@127.0.0.1:10603
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=81
+Client 81 (locker3) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=82 IP=127.0.0.1 NM_Port=10604 SS_Port=10704
+Client 82 registered: locker4@127.0.0.1:10604
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=82
+Client 82 (locker4) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=83 IP=127.0.0.1 NM_Port=10801 SS_Port=10901
+Client 83 registered: mixed_r1@127.0.0.1:10801
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=84 IP=127.0.0.1 NM_Port=10800 SS_Port=10900
+Client 84 registered: mixed_r0@127.0.0.1:10800
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=85 IP=127.0.0.1 NM_Port=10802 SS_Port=10902
+Client 85 registered: mixed_r2@127.0.0.1:10802
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=86 IP=127.0.0.1 NM_Port=10803 SS_Port=10903
+Client 86 registered: mixed_r3@127.0.0.1:10803
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=83
+Client 83 (mixed_r1) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=84
+Client 84 (mixed_r0) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=85
+Client 85 (mixed_r2) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=87 IP=127.0.0.1 NM_Port=10804 SS_Port=10904
+Client 87 registered: mixed_r4@127.0.0.1:10804
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=88 IP=127.0.0.1 NM_Port=11000 SS_Port=11100
+Client 88 registered: mixed_w0@127.0.0.1:11000
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=86
+Client 86 (mixed_r3) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=87
+Client 87 (mixed_r4) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=89 IP=127.0.0.1 NM_Port=11001 SS_Port=11101
+Client 89 registered: mixed_w1@127.0.0.1:11001
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=88
+Client 88 (mixed_w0) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=89
+Client 89 (mixed_w1) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=90 IP=127.0.0.1 NM_Port=11002 SS_Port=11102
+Client 90 registered: mixed_w2@127.0.0.1:11002
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=90
+Client 90 (mixed_w2) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=91 IP=127.0.0.1 NM_Port=11200 SS_Port=11300
+Client 91 registered: multi_op0@127.0.0.1:11200
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=91
+Client 91 (multi_op0) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=92 IP=127.0.0.1 NM_Port=11203 SS_Port=11303
+Client 92 registered: multi_op3@127.0.0.1:11203
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=93 IP=127.0.0.1 NM_Port=11201 SS_Port=11301
+Client 93 registered: multi_op1@127.0.0.1:11201
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=92
+Client 92 (multi_op3) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=94 IP=127.0.0.1 NM_Port=11204 SS_Port=11304
+Client 94 registered: multi_op4@127.0.0.1:11204
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=93
+Client 93 (multi_op1) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=95 IP=127.0.0.1 NM_Port=11202 SS_Port=11302
+Client 95 registered: multi_op2@127.0.0.1:11202
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=94
+Client 94 (multi_op4) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_DISCONNECT - Client_ID=95
+Client 95 (multi_op2) disconnected
+[2025-11-14 14:32:53] [INFO] CLIENT_REGISTER - Client_ID=96 IP=127.0.0.1 NM_Port=11400 SS_Port=11500
+Client 96 registered: viewer1@127.0.0.1:11400
+[2025-11-14 14:32:53] [INFO] VIEW - default
+[2025-11-14 14:32:53] [INFO] CLI

@@ -8,7 +8,8 @@ ErrorCode lock_sentence(StorageServer* ss, const char* filename, int sentence_nu
         return ERR_FILE_NOT_FOUND;
     }
 
-    if (sentence_num < 0 || sentence_num > file->sentence_count) {
+    // Validate sentence number - must exist in file
+    if (sentence_num < 0 || sentence_num >= file->sentence_count) {
         return ERR_INVALID_SENTENCE;
     }
 
@@ -20,29 +21,6 @@ ErrorCode lock_sentence(StorageServer* ss, const char* filename, int sentence_nu
     rebuild_file_content(file, snapshot);
     snapshot_ready = true;
     pthread_rwlock_unlock(&file->file_lock);
-
-    // If requesting to lock a new sentence at the end
-    if (sentence_num == file->sentence_count) {
-        // Create new empty sentence
-        SentenceNode* new_node = create_empty_sentence_node();
-        if (!new_node) {
-            return ERR_SYSTEM_ERROR;
-        }
-        
-        // Lock it immediately
-        pthread_mutex_lock(&new_node->lock);
-        new_node->is_locked = true;
-        new_node->lock_holder_id = client_id;
-        pthread_mutex_unlock(&new_node->lock);
-        
-        // Append to file (this handles structure lock internally)
-        append_sentence(file, new_node);
-        
-        if (snapshot_ready) {
-            push_undo(ss, filename, snapshot);
-        }
-        return ERR_SUCCESS;
-    }
 
     // Get existing sentence
     SentenceNode* sentence = get_sentence_by_index(file, sentence_num);
@@ -111,24 +89,9 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
         return ERR_FILE_NOT_FOUND;
     }
     
-    // Validate sentence number
+    // Validate sentence number - must exist in file
     if (sentence_num < 0 || sentence_num >= file->sentence_count) {
-        // Auto-create sentence if it's exactly at the end
-        if (sentence_num == file->sentence_count) {
-            SentenceNode* new_node = create_empty_sentence_node();
-            if (!new_node) {
-                return ERR_SYSTEM_ERROR;
-            }
-            
-            pthread_mutex_lock(&new_node->lock);
-            new_node->is_locked = true;
-            new_node->lock_holder_id = client_id;
-            pthread_mutex_unlock(&new_node->lock);
-            
-            append_sentence(file, new_node);
-        } else {
-            return ERR_INVALID_SENTENCE;
-        }
+        return ERR_INVALID_SENTENCE;
     }
     
     // Get the sentence
@@ -144,8 +107,24 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
         return ERR_FILE_LOCKED;
     }
     
-    // Perform the word insertion
-    bool success = insert_word_in_sentence(sent, word_index, new_content);
+    // Split content by spaces to insert multiple words
+    char content_copy[BUFFER_SIZE];
+    strncpy(content_copy, new_content, BUFFER_SIZE - 1);
+    content_copy[BUFFER_SIZE - 1] = '\0';
+    
+    char* token;
+    char* saveptr;
+    int current_index = word_index;
+    bool success = true;
+    
+    token = strtok_r(content_copy, " ", &saveptr);
+    while (token != NULL && success) {
+        success = insert_word_in_sentence(sent, current_index, token);
+        if (success) {
+            current_index++;
+        }
+        token = strtok_r(NULL, " ", &saveptr);
+    }
     
     pthread_mutex_unlock(&sent->lock);
     

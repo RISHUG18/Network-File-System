@@ -1,0 +1,220 @@
+
+[0;34m================================================================[0m
+[0;36m  COMPREHENSIVE DISTRIBUTED FILE SYSTEM TEST SUITE[0m
+[0;34m================================================================[0m
+[0;36mTesting: Multiple clients, concurrency, reader/writer coordination[0m
+
+[1;33mCleaning up old processes...[0m
+[1;33mBuilding project...[0m
+[0;32m✓ Build successful[0m
+[1;33mStarting Name Server on port 8080...[0m
+[1;33mStarting Storage Server on port 9002...[0m
+[0;32m✓ Servers running (NM: 29201, SS: 29226)[0m
+
+[0;34m================================================================[0m
+[0;36m  TEST 1: BASIC FILE OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 1.1: Create single file[0m
+[0;32m  ✓ PASS[0m: Create single file
+[1;33m→ Test 1.2: Create multiple files[0m
+[0;32m  ✓ PASS[0m: Create multiple files
+[1;33m→ Test 1.3: Duplicate file creation (error handling)[0m
+[0;32m  ✓ PASS[0m: Duplicate file creation handling
+
+[0;34m================================================================[0m
+[0;36m  TEST 2: MULTIPLE CLIENT REGISTRATION[0m
+[0;34m================================================================[0m
+[1;33m→ Test 2.1: Sequential registration of 10 clients[0m
+[0;32m  ✓ PASS[0m: Sequential client registration
+[1;33m→ Test 2.2: Concurrent registration of 15 clients[0m
+[0;32m  ✓ PASS[0m: Concurrent client registration
+
+[0;34m================================================================[0m
+[0;36m  TEST 3: CONCURRENT READS - SAME FILE[0m
+[0;34m================================================================[0m
+[1;33m→ Test 3.1: 10 clients reading same file concurrently[0m
+Reads: 0/10 succeeded in 0.00s
+[0;31m  ✗ FAIL[0m: 10 concurrent reads on same file
+[1;33m→ Test 3.2: 20 clients reading same file (stress test)[0m
+[0;31m  ✗ FAIL[0m: 20 concurrent reads stress test
+
+[0;34m================================================================[0m
+[0;36m  TEST 4: CONCURRENT READS - DIFFERENT FILES[0m
+[0;34m================================================================[0m
+[1;33m→ Test 4.1: 5 clients reading 5 different files[0m
+[0;31m  ✗ FAIL[0m: 5 clients reading different files
+
+[0;34m================================================================[0m
+[0;36m  TEST 5: CONCURRENT WRITES - DIFFERENT SENTENCES[0m
+[0;34m================================================================[0m
+[1;33m→ Test 5.1: 5 writers on different sentences[0m
+Writes: 0/5, Locked: 0, Failed: 5
+[0;31m  ✗ FAIL[0m: 5 concurrent writes to different sentences
+
+[0;34m================================================================[0m
+[0;36m  TEST 6: CONCURRENT WRITES - SAME SENTENCE (LOCK TEST)[0m
+[0;34m================================================================[0m
+[1;33m→ Test 6.1: 5 writers trying to lock same sentence[0m
+Locked: 0, Blocked: 0
+[0;31m  ✗ FAIL[0m: Sentence lock serialization works
+
+[0;34m================================================================[0m
+[0;36m  TEST 7: MIXED READ/WRITE - SAME FILE[0m
+[0;34m================================================================[0m
+[1;33m→ Test 7.1: 5 readers + 3 writers on same file[0m
+Reads: 0, Writes: 0, Failed: 0
+[0;31m  ✗ FAIL[0m: Mixed read/write operations
+
+[0;34m================================================================[0m
+[0;36m  TEST 8: MIXED READ/WRITE - DIFFERENT FILES[0m
+[0;34m================================================================[0m
+[1;33m→ Test 8.1: Parallel operations on 3 different files[0m
+[0;31m  ✗ FAIL[0m: Parallel ops on different files
+
+[0;34m================================================================[0m
+[0;36m  TEST 9: VIEW OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 9.1: VIEW basic listing[0m
+[0;31m  ✗ FAIL[0m: VIEW basic
+[1;33m→ Test 9.2: VIEW with -l flag[0m
+[0;31m  ✗ FAIL[0m: VIEW -l (detailed)
+[1;33m→ Test 9.3: VIEW with -a flag[0m
+[0;31m  ✗ FAIL[0m: VIEW -a (all files)
+
+[0;34m================================================================[0m
+[0;36m  TEST 10: INFO OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 10.1: INFO on existing file[0m
+[0;31m  ✗ FAIL[0m: INFO existing file
+[1;33m→ Test 10.2: INFO on non-existent file[0m
+[0;31m  ✗ FAIL[0m: INFO non-existent file
+
+[0;34m================================================================[0m
+[0;36m  TEST 11: DELETE OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 11.1: Delete file by owner[0m
+[0;31m  ✗ FAIL[0m: Delete file by owner
+
+[0;34m================================================================[0m
+[0;36m  TEST 12: ACCESS CONTROL[0m
+[0;34m================================================================[0m
+[1;33m→ Test 12.1: Add READ access[0m
+[0;31m  ✗ FAIL[0m: Add READ access
+[1;33m→ Test 12.2: Add WRITE access[0m
+[0;31m  ✗ FAIL[0m: Add WRITE access
+[1;33m→ Test 12.3: Remove access[0m
+[0;31m  ✗ FAIL[0m: Remove access
+
+[0;34m================================================================[0m
+[0;36m  TEST 13: LIST USERS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 13.1: List all users[0m
+[0;31m  ✗ FAIL[0m: List all users
+
+[0;34m================================================================[0m
+[0;36m  TEST 14: STREAM OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 14.1: Stream file content[0m
+[0;31m  ✗ FAIL[0m: Stream file
+
+[0;34m================================================================[0m
+[0;36m  TEST 15: UNDO OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 15.1: Undo file changes[0m
+[0;31m  ✗ FAIL[0m: Undo operation
+
+[0;34m================================================================[0m
+[0;36m  TEST 16: EXEC OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 16.1: Execute file[0m
+[0;31m  ✗ FAIL[0m: Execute file
+
+[0;34m================================================================[0m
+[0;36m  TEST 17: ERROR HANDLING[0m
+[0;34m================================================================[0m
+[1;33m→ Test 17.1: File not found error[0m
+[0;31m  ✗ FAIL[0m: File not found error
+[1;33m→ Test 17.2: Invalid command[0m
+[0;31m  ✗ FAIL[0m: Invalid command error
+
+[0;34m================================================================[0m
+[0;36m  TEST 18: LONG RUNNING OPERATIONS[0m
+[0;34m================================================================[0m
+[1;33m→ Test 18.1: 50 sequential operations[0m
+[0;31m  ✗ FAIL[0m: 50 sequential operations
+
+[0;34m================================================================[0m
+[0;36m  TEST 19: MAXIMUM CONCURRENCY STRESS TEST[0m
+[0;34m================================================================[0m
+[1;33m→ Test 19.1: 30 clients performing random operations[0m
+Success: 0/30, Failed: 30/30
+[0;31m  ✗ FAIL[0m: 30 clients with random operations
+
+[0;34m================================================================[0m
+[0;36m  TEST 20: DATA PERSISTENCE[0m
+[0;34m================================================================[0m
+[1;33m→ Test 20.1: Check storage directory[0m
+[0;32m  ✓ PASS[0m: Storage directory exists
+[1;33m→ Test 20.2: Files persisted to disk[0m
+[0;32m  ✓ PASS[0m: Files persisted (8 files found)
+
+[0;34m================================================================[0m
+[0;36m  FINAL TEST REPORT[0m
+[0;34m================================================================[0m
+
+[0;36m═══════════════════════════════════════════════════[0m
+[0;36m  Total Tests:    [0m31
+[0;32m  Passed:         [0m7
+[0;31m  Failed:         [0m24
+[0;36m  Pass Rate:      [0m22%
+[0;36m═══════════════════════════════════════════════════[0m
+
+[0;31m┌─────────────────────────────────────┐[0m
+[0;31m│  ★ NEEDS WORK - GRADE: F  ★         │[0m
+[0;31m│  Major issues require attention    │[0m
+[0;31m└─────────────────────────────────────┘[0m
+
+[0;36m═══════════════════════════════════════════════════[0m
+[0;36m  DETAILED RESULTS[0m
+[0;36m═══════════════════════════════════════════════════[0m
+[0;32m  ✓ PASS: Create single file[0m
+[0;32m  ✓ PASS: Create multiple files[0m
+[0;32m  ✓ PASS: Duplicate file creation handling[0m
+[0;32m  ✓ PASS: Sequential client registration[0m
+[0;32m  ✓ PASS: Concurrent client registration[0m
+[0;31m  ✗ FAIL: 10 concurrent reads on same file - [0m
+[0;31m  ✗ FAIL: 20 concurrent reads stress test - [0m
+[0;31m  ✗ FAIL: 5 clients reading different files - [0m
+[0;31m  ✗ FAIL: 5 concurrent writes to different sentences - [0m
+[0;31m  ✗ FAIL: Sentence lock serialization works - [0m
+[0;31m  ✗ FAIL: Mixed read/write operations - [0m
+[0;31m  ✗ FAIL: Parallel ops on different files - [0m
+[0;31m  ✗ FAIL: VIEW basic - [0m
+[0;31m  ✗ FAIL: VIEW -l (detailed) - [0m
+[0;31m  ✗ FAIL: VIEW -a (all files) - [0m
+[0;31m  ✗ FAIL: INFO existing file - [0m
+[0;31m  ✗ FAIL: INFO non-existent file - [0m
+[0;31m  ✗ FAIL: Delete file by owner - [0m
+[0;31m  ✗ FAIL: Add READ access - [0m
+[0;31m  ✗ FAIL: Add WRITE access - [0m
+[0;31m  ✗ FAIL: Remove access - [0m
+[0;31m  ✗ FAIL: List all users - [0m
+[0;31m  ✗ FAIL: Stream file - [0m
+[0;31m  ✗ FAIL: Undo operation - [0m
+[0;31m  ✗ FAIL: Execute file - [0m
+[0;31m  ✗ FAIL: File not found error - [0m
+[0;31m  ✗ FAIL: Invalid command error - [0m
+[0;31m  ✗ FAIL: 50 sequential operations - [0m
+[0;31m  ✗ FAIL: 30 clients with random operations - [0m
+[0;32m  ✓ PASS: Storage directory exists[0m
+[0;32m  ✓ PASS: Files persisted (8 files found)[0m
+
+[0;36m═══════════════════════════════════════════════════[0m
+[0;35m  Test logs saved in: test_logs/[0m
+[0;36m═══════════════════════════════════════════════════[0m
+
+[1;33m⚠ Some tests failed. Review the results above.[0m
+
+[1;33mCleaning up processes...[0m
+./comprehensive_test.sh: line 82: 29201 Killed                  ./name_server $NM_PORT > $LOG_DIR/nm.log 2>&1
+./comprehensive_test.sh: line 82: 29226 Killed                  ./storage_server 127.0.0.1 $NM_PORT $SS_PORT > $LOG_DIR/ss.log 2>&1

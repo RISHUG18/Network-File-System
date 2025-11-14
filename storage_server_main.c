@@ -212,7 +212,17 @@ void* handle_client_connection(void* arg) {
             size_t size;
             ErrorCode err = read_file(ss, args[0], content, &size);
             if (err == ERR_SUCCESS) {
-                send_response(client_fd, content);
+                // Always send content with newline, even for empty files
+                if (size > 0) {
+                    send_response(client_fd, content);
+                    // Add newline if content doesn't end with one
+                    if (content[size - 1] != '\n') {
+                        send_response(client_fd, "\n");
+                    }
+                } else {
+                    // Empty file - send just a newline so client knows we responded
+                    send_response(client_fd, "\n");
+                }
             } else {
                 char error_msg[256];
                 snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(err));
