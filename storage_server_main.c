@@ -404,13 +404,50 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     
-    // Register with Name Server
+    // Attempt to bind client port first; auto-increment if occupied to avoid immediate failure
+    int original_port = ss->client_port;
+    int attempts = 0;
+    int max_attempts = 10;
+    int bound_fd = -1;
+    while (attempts < max_attempts) {
+        int fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0) {
+            perror("Client socket create failed");
+            destroy_storage_server(ss);
+            return 1;
+        }
+        int opt = 1;
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+#ifdef SO_REUSEPORT
+        setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+#endif
+        struct sockaddr_in addr; memset(&addr,0,sizeof(addr));
+        addr.sin_family = AF_INET; addr.sin_addr.s_addr = INADDR_ANY; addr.sin_port = htons(ss->client_port);
+        if (bind(fd,(struct sockaddr*)&addr,sizeof(addr))==0) {
+            // success
+            bound_fd = fd;
+            break;
+        } else {
+            close(fd);
+            ss->client_port++; // try next port
+            attempts++;
+        }
+    }
+    if (bound_fd < 0) {
+        fprintf(stderr, "Failed to bind any client port starting at %d after %d attempts\n", original_port, attempts);
+        destroy_storage_server(ss);
+        return 1;
+    }
+    // Close temporary bound fd; real server will bind later using start_client_server
+    close(bound_fd);
+
+    // Register with Name Server (after final port chosen)
     if (!register_with_nm(ss)) {
         fprintf(stderr, "Failed to register with Name Server\n");
         destroy_storage_server(ss);
         return 1;
     }
-    
+
     // Start NM connection handler thread
     pthread_t nm_thread;
     if (pthread_create(&nm_thread, NULL, handle_nm_connection, ss) != 0) {
@@ -419,8 +456,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     pthread_detach(nm_thread);
-    
-    // Start client server (blocks)
+
+    // Start client server (blocks) on chosen port
     start_client_server(ss);
     
     // Cleanup
