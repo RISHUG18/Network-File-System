@@ -225,10 +225,49 @@ ErrorCode stream_file(StorageServer* ss, int client_fd, const char* filename) {
     while (current) {
         // Send each word in the sentence
         for (int i = 0; i < current->word_count; i++) {
+            const char* word = current->words[i];
+            size_t word_len = strlen(word);
+            bool append_delim = (i == current->word_count - 1) && (current->delimiter != '\0');
+
             char word_msg[BUFFER_SIZE];
-            snprintf(word_msg, sizeof(word_msg), "%s\n", current->words[i]);
-            
-            ssize_t sent_bytes = send(client_fd, word_msg, strlen(word_msg), MSG_NOSIGNAL);
+            size_t msg_len = 0;
+
+            if (!append_delim && word_len < sizeof(word_msg) - 1) {
+                memcpy(word_msg, word, word_len);
+                word_msg[word_len] = '\n';
+                msg_len = word_len + 1;
+            } else if (append_delim && word_len < sizeof(word_msg) - 2) {
+                memcpy(word_msg, word, word_len);
+                word_msg[word_len] = current->delimiter;
+                word_msg[word_len + 1] = '\n';
+                msg_len = word_len + 2;
+            } else {
+                // Fallback for very long words: stream in pieces while preserving delimiter
+                ssize_t sent_bytes = send(client_fd, word, word_len, MSG_NOSIGNAL);
+                if (sent_bytes <= 0) {
+                    pthread_mutex_unlock(&file->structure_lock);
+                    pthread_rwlock_unlock(&file->file_lock);
+                    return ERR_SYSTEM_ERROR;
+                }
+
+                if (append_delim) {
+                    char tail[2] = { current->delimiter, '\n' };
+                    sent_bytes = send(client_fd, tail, sizeof(tail), MSG_NOSIGNAL);
+                } else {
+                    char newline = '\n';
+                    sent_bytes = send(client_fd, &newline, 1, MSG_NOSIGNAL);
+                }
+
+                if (sent_bytes <= 0) {
+                    pthread_mutex_unlock(&file->structure_lock);
+                    pthread_rwlock_unlock(&file->file_lock);
+                    return ERR_SYSTEM_ERROR;
+                }
+
+                continue;
+            }
+
+            ssize_t sent_bytes = send(client_fd, word_msg, msg_len, MSG_NOSIGNAL);
             if (sent_bytes <= 0) {
                 // Client disconnected
                 pthread_mutex_unlock(&file->structure_lock);

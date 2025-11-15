@@ -204,6 +204,7 @@ void cmd_stream_file(Client* client, const char* filename) {
     size_t pending_len = 0;
     bool saw_data = false;
     bool done = false;
+    bool first_token = true;
 
     while (!done) {
         ssize_t bytes = recv(ss_socket, buffer, sizeof(buffer), 0);
@@ -246,8 +247,15 @@ void cmd_stream_file(Client* client, const char* filename) {
                 break;
             }
 
-            printf("%s\n", line);
-            fflush(stdout);
+            if (line_len > 0) {
+                if (!first_token) {
+                    printf(" ");
+                }
+
+                printf("%s", line);
+                fflush(stdout);
+                first_token = false;
+            }
 
             processed = (size_t)(newline - pending) + 1;
         }
@@ -259,6 +267,9 @@ void cmd_stream_file(Client* client, const char* filename) {
     }
 
     if (saw_data) {
+        if (!first_token) {
+            printf("\n");
+        }
         printf("--- End of Stream ---\n");
     } else {
         printf("✗ No data received\n");

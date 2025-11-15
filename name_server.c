@@ -202,7 +202,8 @@ void put_in_cache(LRUCache* cache, const char* filename, FileMetadata* metadata)
     
     // Create new entry
     CacheEntry* entry = (CacheEntry*)malloc(sizeof(CacheEntry));
-    strncpy(entry->filename, filename, MAX_FILENAME);
+    strncpy(entry->filename, filename, MAX_FILENAME - 1);
+    entry->filename[MAX_FILENAME - 1] = '\0';
     entry->metadata = metadata;
     entry->timestamp = time(NULL);
     entry->next = cache->head;
@@ -393,7 +394,8 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
     
     StorageServer* ss = (StorageServer*)malloc(sizeof(StorageServer));
     ss->id = nm->ss_count;
-    strncpy(ss->ip, ip, MAX_IP_LEN);
+    strncpy(ss->ip, ip, MAX_IP_LEN - 1);
+    ss->ip[MAX_IP_LEN - 1] = '\0';
     ss->nm_port = nm_port;
     ss->client_port = client_port;
     ss->socket_fd = socket_fd;
@@ -429,8 +431,8 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
             continue;
         }
 
-        strncpy(metadata->filename, files[i], MAX_FILENAME - 1);
-        metadata->filename[MAX_FILENAME - 1] = '\0';
+    strncpy(metadata->filename, files[i], MAX_FILENAME - 1);
+    metadata->filename[MAX_FILENAME - 1] = '\0';
         metadata->owner[0] = '\0';  // Will be set on first write
         metadata->ss_id = ss_id;
         metadata->created_time = time(NULL);
@@ -509,8 +511,10 @@ int register_client(NameServer* nm, const char* username, const char* ip,
     
     Client* client = (Client*)malloc(sizeof(Client));
     client->id = nm->client_count;
-    strncpy(client->username, username, MAX_USERNAME);
-    strncpy(client->ip, ip, MAX_IP_LEN);
+    strncpy(client->username, username, MAX_USERNAME - 1);
+    client->username[MAX_USERNAME - 1] = '\0';
+    strncpy(client->ip, ip, MAX_IP_LEN - 1);
+    client->ip[MAX_IP_LEN - 1] = '\0';
     client->nm_port = nm_port;
     client->ss_port = ss_port;
     client->socket_fd = socket_fd;
@@ -609,7 +613,8 @@ ErrorCode add_access(NameServer* nm, Client* client, const char* filename,
     
     // Add new entry
     struct AccessEntry* new_entry = (struct AccessEntry*)malloc(sizeof(struct AccessEntry));
-    strncpy(new_entry->username, username, MAX_USERNAME);
+    strncpy(new_entry->username, username, MAX_USERNAME - 1);
+    new_entry->username[MAX_USERNAME - 1] = '\0';
     new_entry->access = access;
     new_entry->next = metadata->acl;
     metadata->acl = new_entry;

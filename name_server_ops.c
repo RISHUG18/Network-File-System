@@ -64,7 +64,13 @@ ErrorCode handle_view_files(NameServer* nm, Client* client, const char* flags, c
     if (offset == 0 || (detailed && offset < 100)) {
         strcpy(response, "No files found\n");
     } else {
-        strncpy(response, buffer, BUFFER_SIZE * 4 - 1);
+        size_t response_cap = BUFFER_SIZE * 4;
+        size_t copy_len = strlen(buffer);
+        if (copy_len >= response_cap) {
+            copy_len = response_cap - 1;
+        }
+        memcpy(response, buffer, copy_len);
+        response[copy_len] = '\0';
     }
     
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
@@ -115,8 +121,10 @@ ErrorCode handle_create_file(NameServer* nm, Client* client, const char* filenam
     // Add to trie
     pthread_mutex_lock(&nm->trie_lock);
     FileMetadata* metadata = (FileMetadata*)malloc(sizeof(FileMetadata));
-    strncpy(metadata->filename, filename, MAX_FILENAME);
-    strncpy(metadata->owner, client->username, MAX_USERNAME);
+    strncpy(metadata->filename, filename, MAX_FILENAME - 1);
+    metadata->filename[MAX_FILENAME - 1] = '\0';
+    strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
+    metadata->owner[MAX_USERNAME - 1] = '\0';
     metadata->ss_id = ss->id;
     metadata->created_time = time(NULL);
     metadata->last_modified = time(NULL);
@@ -387,15 +395,28 @@ ErrorCode handle_exec_file(NameServer* nm, Client* client, const char* filename,
     }
     
     char output[BUFFER_SIZE * 4] = {0};
-    int offset = 0;
+    size_t offset = 0;
     char line[1024];
     
     while (fgets(line, sizeof(line), fp) != NULL) {
-        int len = strlen(line);
-        if (offset + len < sizeof(output) - 1) {
-            strcpy(output + offset, line);
-            offset += len;
+        if (offset >= sizeof(output) - 1) {
+            break;
         }
+
+        size_t len = strlen(line);
+        size_t space = sizeof(output) - offset - 1;
+
+        if (len > space) {
+            len = space;
+        }
+
+        if (len == 0) {
+            continue;
+        }
+
+        memcpy(output + offset, line, len);
+        offset += len;
+        output[offset] = '\0';
     }
     
     int status = pclose(fp);
@@ -467,7 +488,7 @@ ErrorCode handle_list_users(NameServer* nm, char* response) {
     pthread_mutex_lock(&nm->client_lock);
     
     char buffer[BUFFER_SIZE] = "Registered Users:\n";
-    int offset = strlen(buffer);
+    size_t offset = strlen(buffer);
     
     for (int i = 0; i < nm->client_count; i++) {
         if (nm->clients[i] && nm->clients[i]->is_active) {
@@ -483,7 +504,12 @@ ErrorCode handle_list_users(NameServer* nm, char* response) {
     if (offset == strlen("Registered Users:\n")) {
         strcpy(response, "No users currently connected\n");
     } else {
-        strncpy(response, buffer, BUFFER_SIZE - 1);
+        size_t copy_len = offset;
+        if (copy_len >= BUFFER_SIZE) {
+            copy_len = BUFFER_SIZE - 1;
+        }
+        memcpy(response, buffer, copy_len);
+        response[copy_len] = '\0';
     }
     
     return ERR_SUCCESS;
