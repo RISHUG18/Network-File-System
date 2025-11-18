@@ -55,6 +55,7 @@ typedef struct SentenceNode {
 typedef struct FileEntry {
     char filename[MAX_FILENAME];
     char filepath[MAX_PATH];
+    char swap_filepath[MAX_PATH];
     SentenceNode* head;              // First sentence (linked list head)
     SentenceNode* tail;              // Last sentence (linked list tail)
     int sentence_count;              // Total number of sentences
@@ -65,6 +66,7 @@ typedef struct FileEntry {
     pthread_mutex_t structure_lock;  // Protects linked list structure modifications
     time_t last_modified;
     time_t last_accessed;
+    bool swap_pending;
 } FileEntry;
 
 // Undo history entry
@@ -167,6 +169,9 @@ ErrorCode get_file_info(StorageServer* ss, const char* filename,
 
 // Persistence
 bool save_file_to_disk(FileEntry* file);
+bool save_file_to_swap(FileEntry* file);
+bool commit_swap_file(FileEntry* file);
+void discard_swap_file(FileEntry* file);
 bool load_file_from_disk(StorageServer* ss, const char* filename);
 void load_all_files(StorageServer* ss);
 

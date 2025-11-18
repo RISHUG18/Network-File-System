@@ -260,6 +260,16 @@ void* handle_client_connection(void* arg) {
                 ErrorCode err = unlock_sentence(ss, write_filename, write_sentence_num, client_id);
                 
                 if (err == ERR_SUCCESS) {
+                    FileEntry* file = find_file(ss, write_filename);
+                    if (file) {
+                        pthread_rwlock_wrlock(&file->file_lock);
+                        if (!commit_swap_file(file)) {
+                            log_message(ss, "WARN", "WRITE", "Failed to commit swap file, saving directly");
+                            save_file_to_disk(file);
+                            discard_swap_file(file);
+                        }
+                        pthread_rwlock_unlock(&file->file_lock);
+                    }
                     send_response(client_fd, "SUCCESS\n");
                 } else {
                     char error_msg[256];

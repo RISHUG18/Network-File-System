@@ -561,24 +561,86 @@ void refresh_file_stats(FileEntry* file) {
 
 // ==================== FILE PERSISTENCE ====================
 
-bool save_file_to_disk(FileEntry* file) {
+static void build_swap_path(const char* base_path, char* dest, size_t dest_len) {
+    if (!dest || dest_len == 0) return;
+    const char* ext = ".swap";
+    size_t ext_len = strlen(ext);
+
+    strncpy(dest, base_path, dest_len - 1);
+    dest[dest_len - 1] = '\0';
+
+    size_t current_len = strlen(dest);
+    if (current_len + ext_len < dest_len) {
+        strncat(dest, ext, dest_len - current_len - 1);
+    } else if (dest_len > ext_len) {
+        size_t start = dest_len - ext_len - 1;
+        memcpy(dest + start, ext, ext_len);
+        dest[dest_len - 1] = '\0';
+    }
+}
+
+static bool write_content_to_path(FileEntry* file, const char* path) {
     char content[MAX_CONTENT_SIZE];
     rebuild_file_content(file, content);
-    
-    FILE* fp = fopen(file->filepath, "w");
+
+    FILE* fp = fopen(path, "w");
     if (!fp) {
         return false;
     }
-    
+
     fwrite(content, 1, strlen(content), fp);
     fclose(fp);
-    
     return true;
+}
+
+bool save_file_to_disk(FileEntry* file) {
+    if (!write_content_to_path(file, file->filepath)) {
+        return false;
+    }
+    file->swap_pending = false;
+    return true;
+}
+
+bool save_file_to_swap(FileEntry* file) {
+    if (!write_content_to_path(file, file->swap_filepath)) {
+        return false;
+    }
+    file->swap_pending = true;
+    return true;
+}
+
+bool commit_swap_file(FileEntry* file) {
+    if (!file) return false;
+
+    if (access(file->swap_filepath, F_OK) != 0) {
+        file->swap_pending = false;
+        return true;
+    }
+
+    if (rename(file->swap_filepath, file->filepath) == 0) {
+        file->swap_pending = false;
+        return true;
+    }
+
+    return false;
+}
+
+void discard_swap_file(FileEntry* file) {
+    if (!file) return;
+    if (access(file->swap_filepath, F_OK) == 0) {
+        unlink(file->swap_filepath);
+    }
+    file->swap_pending = false;
 }
 
 bool load_file_from_disk(StorageServer* ss, const char* filename) {
     char filepath[MAX_PATH];
     snprintf(filepath, sizeof(filepath), "%s/%s", STORAGE_DIR, filename);
+    char swap_path[MAX_PATH];
+    build_swap_path(filepath, swap_path, sizeof(swap_path));
+    if (access(swap_path, F_OK) == 0) {
+        rename(swap_path, filepath);
+    }
     
     FILE* fp = fopen(filepath, "r");
     if (!fp) {
@@ -597,6 +659,9 @@ bool load_file_from_disk(StorageServer* ss, const char* filename) {
     file->filename[MAX_FILENAME - 1] = '\0';
     strncpy(file->filepath, filepath, MAX_PATH - 1);
     file->filepath[MAX_PATH - 1] = '\0';
+    strncpy(file->swap_filepath, swap_path, MAX_PATH - 1);
+    file->swap_filepath[MAX_PATH - 1] = '\0';
+    file->swap_pending = false;
     
     pthread_rwlock_init(&file->file_lock, NULL);
     
@@ -732,6 +797,9 @@ FileEntry* create_file(StorageServer* ss, const char* filename) {
     file->filename[MAX_FILENAME - 1] = '\0';
     
     snprintf(file->filepath, sizeof(file->filepath), "%s/%s", STORAGE_DIR, filename);
+    build_swap_path(file->filepath, file->swap_filepath, sizeof(file->swap_filepath));
+    file->swap_pending = false;
+    unlink(file->swap_filepath);
     
     // Initialize empty linked list
     file->head = NULL;
@@ -779,6 +847,7 @@ ErrorCode delete_file(StorageServer* ss, const char* filename) {
             
             // Delete file from disk
             unlink(file->filepath);
+            unlink(file->swap_filepath);
             
             // Free all sentences in linked list
             free_all_sentences(file);

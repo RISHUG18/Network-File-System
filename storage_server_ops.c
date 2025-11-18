@@ -197,7 +197,10 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
     pthread_rwlock_rdlock(&file->file_lock);
     refresh_file_stats(file);
     file->last_modified = time(NULL);
-    save_file_to_disk(file);
+    if (!save_file_to_swap(file)) {
+        log_message(ss, "WARN", "WRITE", "Failed to persist swap file, writing directly");
+        save_file_to_disk(file);
+    }
     pthread_rwlock_unlock(&file->file_lock);
     
     char details[256];
@@ -418,6 +421,7 @@ void destroy_storage_server(StorageServer* ss) {
     // Free files
     for (int i = 0; i < ss->file_count; i++) {
         if (ss->files[i]) {
+            discard_swap_file(ss->files[i]);
             free_all_sentences(ss->files[i]);
             pthread_rwlock_destroy(&ss->files[i]->file_lock);
             pthread_mutex_destroy(&ss->files[i]->structure_lock);
