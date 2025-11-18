@@ -53,10 +53,6 @@ void log_error(NameServer* nm, ErrorCode error, const char* details) {
 
 // Persistence helpers (forward declarations)
 static void free_acl_list(AccessEntry* head);
-static void load_acl_metadata(NameServer* nm);
-void save_acl_metadata(NameServer* nm);
-static void apply_persisted_acl(NameServer* nm, FileMetadata* metadata);
-static void clear_persisted_acls(NameServer* nm);
 static void load_user_registry(NameServer* nm);
 static void save_user_registry(NameServer* nm);
 static RegisteredUser* find_registered_user(NameServer* nm, const char* username);
@@ -278,7 +274,6 @@ NameServer* init_name_server(int port) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         nm->clients[i] = NULL;
     }
-    nm->persisted_acls = NULL;
     nm->registered_user_count = 0;
     for (int i = 0; i < MAX_REGISTERED_USERS; i++) {
         nm->user_registry[i] = NULL;
@@ -346,7 +341,6 @@ NameServer* init_name_server(int port) {
     log_message(nm, "INFO", NULL, 0, NULL, "INIT", "Name Server initialized");
     printf("Name Server initialized on port %d\n", port);
 
-    load_acl_metadata(nm);
     load_user_registry(nm);
     
     return nm;
@@ -398,7 +392,6 @@ void destroy_name_server(NameServer* nm) {
     for (int i = 0; i < nm->registered_user_count; i++) {
         free(nm->user_registry[i]);
     }
-    clear_persisted_acls(nm);
     
     // Destroy locks
     pthread_mutex_destroy(&nm->ss_lock);
@@ -476,7 +469,6 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
         metadata->acl = NULL;
 
         insert_file_trie(nm->file_trie, files[i], metadata);
-        apply_persisted_acl(nm, metadata);
         put_in_cache(nm->cache, files[i], metadata);
     }
     pthread_mutex_unlock(&nm->trie_lock);
@@ -641,7 +633,6 @@ ErrorCode add_access(NameServer* nm, Client* client, const char* filename,
                     filename, username, access == ACCESS_READ ? "READ" : "WRITE");
             log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                        "UPDATE_ACCESS", details);
-            save_acl_metadata(nm);
             return ERR_SUCCESS;
         }
         entry = entry->next;
@@ -660,7 +651,6 @@ ErrorCode add_access(NameServer* nm, Client* client, const char* filename,
             filename, username, access == ACCESS_READ ? "READ" : "WRITE");
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "ADD_ACCESS", details);
-    save_acl_metadata(nm);
     
     return ERR_SUCCESS;
 }
@@ -695,7 +685,6 @@ ErrorCode remove_access(NameServer* nm, Client* client, const char* filename, co
             snprintf(details, sizeof(details), "File=%s User=%s", filename, username);
             log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                        "REMOVE_ACCESS", details);
-            save_acl_metadata(nm);
             return ERR_SUCCESS;
         }
         prev = entry;
@@ -703,138 +692,6 @@ ErrorCode remove_access(NameServer* nm, Client* client, const char* filename, co
     }
     
     return ERR_UNAUTHORIZED;
-}
-
-// ==================== PERSISTENCE HELPERS ====================
-
-static void write_metadata_recursive(FILE* fp, TrieNode* node) {
-    if (!node) return;
-    if (node->is_end_of_word && node->file_metadata) {
-        FileMetadata* metadata = (FileMetadata*)node->file_metadata;
-        fprintf(fp, "FILE|%s|%s\n", metadata->filename,
-                metadata->owner[0] ? metadata->owner : "");
-        AccessEntry* entry = metadata->acl;
-        while (entry) {
-            fprintf(fp, "ACL|%s|%s\n", entry->username,
-                    entry->access == ACCESS_WRITE ? "WRITE" : "READ");
-            entry = entry->next;
-        }
-        fprintf(fp, "END\n");
-    }
-    for (int i = 0; i < 256; i++) {
-        if (node->children[i]) {
-            write_metadata_recursive(fp, node->children[i]);
-        }
-    }
-}
-
-void save_acl_metadata(NameServer* nm) {
-    pthread_mutex_lock(&nm->persistence_lock);
-    FILE* fp = fopen(ACL_PERSIST_FILE, "w");
-    if (!fp) {
-        pthread_mutex_unlock(&nm->persistence_lock);
-        perror("Failed to persist ACL metadata");
-        return;
-    }
-    pthread_mutex_lock(&nm->trie_lock);
-    write_metadata_recursive(fp, nm->file_trie);
-    pthread_mutex_unlock(&nm->trie_lock);
-    fclose(fp);
-    pthread_mutex_unlock(&nm->persistence_lock);
-}
-
-static void clear_persisted_acls(NameServer* nm) {
-    PersistedAclEntry* entry = nm->persisted_acls;
-    while (entry) {
-        PersistedAclEntry* next = entry->next;
-        free_acl_list(entry->acl);
-        free(entry);
-        entry = next;
-    }
-    nm->persisted_acls = NULL;
-}
-
-static void load_acl_metadata(NameServer* nm) {
-    pthread_mutex_lock(&nm->persistence_lock);
-    clear_persisted_acls(nm);
-    FILE* fp = fopen(ACL_PERSIST_FILE, "r");
-    if (!fp) {
-        pthread_mutex_unlock(&nm->persistence_lock);
-        return;
-    }
-    char line[512];
-    PersistedAclEntry* current = NULL;
-    while (fgets(line, sizeof(line), fp)) {
-        line[strcspn(line, "\r\n")] = '\0';
-        if (strncmp(line, "FILE|", 5) == 0) {
-            char* payload = line + 5;
-            char* filename = strtok(payload, "|");
-            char* owner = strtok(NULL, "|");
-            if (!filename) {
-                current = NULL;
-                continue;
-            }
-            PersistedAclEntry* entry = (PersistedAclEntry*)calloc(1, sizeof(PersistedAclEntry));
-            strncpy(entry->filename, filename, MAX_FILENAME - 1);
-            if (owner) {
-                strncpy(entry->owner, owner, MAX_USERNAME - 1);
-            }
-            entry->acl = NULL;
-            entry->next = nm->persisted_acls;
-            nm->persisted_acls = entry;
-            current = entry;
-        } else if (strncmp(line, "ACL|", 4) == 0 && current) {
-            char* payload = line + 4;
-            char* username = strtok(payload, "|");
-            char* access_str = strtok(NULL, "|");
-            if (!username || !access_str) {
-                continue;
-            }
-            AccessEntry* node = (AccessEntry*)calloc(1, sizeof(AccessEntry));
-            strncpy(node->username, username, MAX_USERNAME - 1);
-            node->access = (strcmp(access_str, "WRITE") == 0) ? ACCESS_WRITE : ACCESS_READ;
-            node->next = current->acl;
-            current->acl = node;
-        } else if (strcmp(line, "END") == 0) {
-            current = NULL;
-        }
-    }
-    fclose(fp);
-    pthread_mutex_unlock(&nm->persistence_lock);
-}
-
-static void apply_persisted_acl(NameServer* nm, FileMetadata* metadata) {
-    if (!metadata) return;
-    pthread_mutex_lock(&nm->persistence_lock);
-    PersistedAclEntry* entry = nm->persisted_acls;
-    while (entry) {
-        if (strcmp(entry->filename, metadata->filename) == 0) {
-            if (entry->owner[0] != '\0') {
-                strncpy(metadata->owner, entry->owner, MAX_USERNAME - 1);
-                metadata->owner[MAX_USERNAME - 1] = '\0';
-            }
-            free_acl_list(metadata->acl);
-            metadata->acl = NULL;
-            AccessEntry* src = entry->acl;
-            AccessEntry* tail = NULL;
-            while (src) {
-                AccessEntry* dup = (AccessEntry*)calloc(1, sizeof(AccessEntry));
-                strncpy(dup->username, src->username, MAX_USERNAME - 1);
-                dup->username[MAX_USERNAME - 1] = '\0';
-                dup->access = src->access;
-                if (!metadata->acl) {
-                    metadata->acl = dup;
-                } else {
-                    tail->next = dup;
-                }
-                tail = dup;
-                src = src->next;
-            }
-            break;
-        }
-        entry = entry->next;
-    }
-    pthread_mutex_unlock(&nm->persistence_lock);
 }
 
 static RegisteredUser* find_registered_user(NameServer* nm, const char* username) {

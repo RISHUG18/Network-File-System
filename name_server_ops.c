@@ -152,7 +152,6 @@ ErrorCode handle_create_file(NameServer* nm, Client* client, const char* filenam
     snprintf(details, sizeof(details), "File=%s SS_ID=%d", filename, ss->id);
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "CREATE", details);
-    save_acl_metadata(nm);
     
     return ERR_SUCCESS;
 }
@@ -193,7 +192,6 @@ ErrorCode handle_delete_file(NameServer* nm, Client* client, const char* filenam
     snprintf(details, sizeof(details), "File=%s", filename);
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "DELETE", details);
-    save_acl_metadata(nm);
     
     return ERR_SUCCESS;
 }
