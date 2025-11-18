@@ -423,11 +423,6 @@ void parse_sentences(FileEntry* file, const char* content) {
         // Extract sentence text (without delimiter)
         size_t sentence_len = (delimiter != '\0') ? (index - start - 1) : (index - start);
         
-        // Skip if empty
-        if (sentence_len == 0) {
-            continue;
-        }
-
         // Extract and parse words from sentence
         char sentence_text[MAX_CONTENT_SIZE];
         if (sentence_len >= MAX_CONTENT_SIZE) {
@@ -451,11 +446,17 @@ void parse_sentences(FileEntry* file, const char* content) {
         }
 
         // Create sentence node
-        if (word_count > 0) {
-            SentenceNode* node = create_sentence_node((const char**)words, word_count, delimiter);
-            if (node) {
-                append_sentence(file, node);
-            }
+        SentenceNode* node = create_sentence_node((const char**)words, word_count, delimiter);
+        if (node) {
+            append_sentence(file, node);
+        }
+    }
+
+    // If the last sentence has a delimiter, append an empty sentence
+    if (file->tail && file->tail->delimiter != '\0') {
+        SentenceNode* node = create_empty_sentence_node();
+        if (node) {
+            append_sentence(file, node);
         }
     }
 
@@ -488,6 +489,8 @@ void rebuild_file_content(FileEntry* file, char* content) {
         }
         first = false;
         
+        pthread_mutex_lock(&current->lock);
+        
         // Add all words in sentence
         for (int i = 0; i < current->word_count; i++) {
             if (i > 0) {
@@ -507,6 +510,8 @@ void rebuild_file_content(FileEntry* file, char* content) {
         if (current->delimiter != '\0') {
             content[offset++] = current->delimiter;
         }
+        
+        pthread_mutex_unlock(&current->lock);
         
         current = current->next;
     }
@@ -534,6 +539,8 @@ void refresh_file_stats(FileEntry* file) {
         }
         first = false;
         
+        pthread_mutex_lock(&current->lock);
+        
         // Count words and characters
         total_words += current->word_count;
         
@@ -548,6 +555,8 @@ void refresh_file_stats(FileEntry* file) {
         if (current->delimiter != '\0') {
             total_chars += 1;
         }
+        
+        pthread_mutex_unlock(&current->lock);
         
         current = current->next;
     }

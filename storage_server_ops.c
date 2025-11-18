@@ -89,14 +89,19 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
         return ERR_FILE_NOT_FOUND;
     }
     
+    // Acquire Read lock on file to prevent concurrent reparsing
+    pthread_rwlock_rdlock(&file->file_lock);
+    
     // Validate sentence number - must exist in file
     if (sentence_num < 0 || sentence_num >= file->sentence_count) {
+        pthread_rwlock_unlock(&file->file_lock);
         return ERR_INVALID_SENTENCE;
     }
     
     // Get the sentence
     SentenceNode* sent = get_sentence_by_index(file, sentence_num);
     if (!sent) {
+        pthread_rwlock_unlock(&file->file_lock);
         return ERR_INVALID_SENTENCE;
     }
     
@@ -104,6 +109,7 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
     pthread_mutex_lock(&sent->lock);
     if (sent->is_locked && sent->lock_holder_id != client_id) {
         pthread_mutex_unlock(&sent->lock);
+        pthread_rwlock_unlock(&file->file_lock);
         return ERR_FILE_LOCKED;
     }
     
@@ -129,6 +135,7 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
     pthread_mutex_unlock(&sent->lock);
     
     if (!success) {
+        pthread_rwlock_unlock(&file->file_lock);
         return ERR_INVALID_OPERATION;
     }
     
@@ -143,6 +150,8 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
     
     if (has_delimiter) {
         // Delimiter added - need to reparse entire file
+        // Release Read lock and acquire Write lock
+        pthread_rwlock_unlock(&file->file_lock);
         pthread_rwlock_wrlock(&file->file_lock);
         
         // Rebuild full content with current state
@@ -190,11 +199,13 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
         
         free(lock_states);
         
+        // Downgrade to Read lock for saving (not supported directly, so unlock and relock)
         pthread_rwlock_unlock(&file->file_lock);
+        pthread_rwlock_rdlock(&file->file_lock);
     }
     
     // Save to disk (acquire file lock for this)
-    pthread_rwlock_rdlock(&file->file_lock);
+    // We already hold Read lock
     refresh_file_stats(file);
     file->last_modified = time(NULL);
     if (!save_file_to_swap(file)) {

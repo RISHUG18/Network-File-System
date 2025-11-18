@@ -1,0 +1,48 @@
+[2025-11-19 00:33:15] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-19 00:33:15] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-19 00:33:15] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-19 00:33:31] [INFO] Op=CREATE Details=File=rishu\
+[2025-11-19 00:33:35] [INFO] Op=CREATE Details=File=rishu
+[2025-11-19 00:33:47] [INFO] Op=WRITE Details=File=rishu Sentence=0 Word=0
+[2025-11-19 00:33:51] [INFO] Op=WRITE Details=File=rishu Sentence=0 Word=1
+[2025-11-19 00:34:01] [INFO] Op=UNDO Details=File=rishu
+[2025-11-19 00:34:09] [INFO] Op=WRITE Details=File=rishu Sentence=0 Word=0
+[2025-11-19 00:38:16] [INFO] Op=CREATE Details=File=alice
+[2025-11-19 00:39:30] [INFO] Op=DELETE Details=File=rishu
+[2025-11-19 00:39:46] [INFO] Op=DELETE Details=File=alice
+[2025-11-19 00:39:57] [INFO] Op=CREATE Details=File=alice
+[2025-11-19 00:40:18] [INFO] Op=WRITE Details=File=alice Sentence=0 Word=0
+[2025-11-19 00:40:43] [INFO] Op=DELETE Details=File=alice
+[2025-11-19 00:40:50] [INFO] Op=CREATE Details=File=alice
+[2025-11-19 00:40:56] [INFO] Op=WRITE Details=File=alice Sentence=0 Word=0
+[2025-11-19 00:41:49] [INFO] Op=CREATE Details=File=temp.txt
+[2025-11-19 00:42:42] [INFO] Op=WRITE Details=File=temp.txt Sentence=0 Word=0
+[2025-11-19 00:42:53] [INFO] Op=WRITE Details=File=temp.txt Sentence=0 Word=0
+[2025-11-19 00:43:53] [INFO] Op=CREATE Details=File=test.txt
+[2025-11-19 00:45:59] [WARN] Op=NM_DISCONNECT Details=Connection lost
+[2025-11-19 00:46:08] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-19 00:46:08] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-19 00:46:08] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-19 00:46:14] [INFO] Op=CREATE Details=File=test
+[2025-11-19 00:46:23] [INFO] Op=WRITE Details=File=test Sentence=0 Word=0
+[2025-11-19 00:46:35] [INFO] Op=WRITE Details=File=test Sentence=1 Word=0
+[2025-11-19 00:46:40] [INFO] Op=WRITE Details=File=test Sentence=1 Word=0
+[2025-11-19 00:47:48] [INFO] Op=DELETE Details=File=test
+[2025-11-19 00:47:57] [INFO] Op=CREATE Details=File=test
+[2025-11-19 00:48:43] [INFO] Op=WRITE Details=File=test Sentence=0 Word=0
+[2025-11-19 00:50:16] [INFO] Op=WRITE Details=File=test Sentence=1 Word=0
+[2025-11-19 00:50:19] [INFO] Op=WRITE Details=File=test Sentence=0 Word=1
+[2025-11-19 00:52:40] [INFO] Op=DELETE Details=File=test
+[2025-11-19 00:52:51] [INFO] Op=CREATE Details=File=test
+[2025-11-19 00:53:02] [INFO] Op=WRITE Details=File=test Sentence=0 Word=0
+[2025-11-19 00:53:14] [INFO] Op=WRITE Details=File=test Sentence=1 Word=0
+[2025-11-19 00:53:38] [INFO] Op=WRITE Details=File=test Sentence=2 Word=0
+[2025-11-19 00:53:59] [INFO] Op=WRITE Details=File=test Sentence=2 Word=1
+[2025-11-19 00:54:17] [INFO] Op=WRITE Details=File=test Sentence=2 Word=2
+[2025-11-19 00:54:34] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-19 00:54:34] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-19 00:54:34] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-19 00:54:45] [INFO] Op=CREATE Details=File=new
+[2025-11-19 00:54:54] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-19 00:54:54] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-19 00:54:54] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections

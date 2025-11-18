@@ -411,6 +411,86 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
                             int client_port, char** files, int file_count, int socket_fd) {
     pthread_mutex_lock(&nm->ss_lock);
     
+    // Check if SS already registered (same IP and client port)
+    for (int i = 0; i < nm->ss_count; i++) {
+        StorageServer* existing_ss = nm->storage_servers[i];
+        if (existing_ss && 
+            strcmp(existing_ss->ip, ip) == 0 && 
+            existing_ss->client_port == client_port) {
+            
+            // Found existing SS - update it
+            existing_ss->nm_port = nm_port;
+            
+            // Close old socket if different
+            if (existing_ss->socket_fd >= 0 && existing_ss->socket_fd != socket_fd) {
+                close(existing_ss->socket_fd);
+            }
+            existing_ss->socket_fd = socket_fd;
+            existing_ss->is_active = true;
+            
+            // Update files
+            // Free old files
+            for (int j = 0; j < existing_ss->file_count; j++) {
+                free(existing_ss->files[j]);
+            }
+            free(existing_ss->files);
+            
+            // Set new files
+            existing_ss->file_count = file_count;
+            existing_ss->files = (char**)malloc(sizeof(char*) * file_count);
+            for (int j = 0; j < file_count; j++) {
+                existing_ss->files[j] = strdup(files[j]);
+            }
+            
+            int ss_id = existing_ss->id;
+            pthread_mutex_unlock(&nm->ss_lock);
+            
+            // Update trie for new files
+            pthread_mutex_lock(&nm->trie_lock);
+            for (int j = 0; j < file_count; j++) {
+                FileMetadata* metadata = search_file_trie(nm->file_trie, files[j]);
+                if (metadata) {
+                    metadata->ss_id = ss_id;
+                    metadata->last_accessed = time(NULL);
+                    put_in_cache(nm->cache, files[j], metadata);
+                    continue;
+                }
+
+                metadata = (FileMetadata*)calloc(1, sizeof(FileMetadata));
+                if (!metadata) {
+                    continue;
+                }
+
+                strncpy(metadata->filename, files[j], MAX_FILENAME - 1);
+                metadata->filename[MAX_FILENAME - 1] = '\0';
+                metadata->owner[0] = '\0';
+                metadata->ss_id = ss_id;
+                metadata->created_time = time(NULL);
+                metadata->last_modified = time(NULL);
+                metadata->last_accessed = time(NULL);
+                metadata->last_accessed_by[0] = '\0';
+                metadata->file_size = 0;
+                metadata->word_count = 0;
+                metadata->char_count = 0;
+                metadata->acl = NULL;
+
+                insert_file_trie(nm->file_trie, files[j], metadata);
+                put_in_cache(nm->cache, files[j], metadata);
+            }
+            pthread_mutex_unlock(&nm->trie_lock);
+            
+            char details[256];
+            snprintf(details, sizeof(details), "SS_ID=%d IP=%s NM_Port=%d Client_Port=%d Files=%d (Reconnected)",
+                     ss_id, ip, nm_port, client_port, file_count);
+            log_message(nm, "INFO", ip, nm_port, NULL, "SS_REGISTER", details);
+            
+            printf("Storage Server %d reconnected: %s:%d (Files: %d)\n", 
+                   ss_id, ip, client_port, file_count);
+            
+            return ss_id;
+        }
+    }
+
     if (nm->ss_count >= MAX_SS) {
         pthread_mutex_unlock(&nm->ss_lock);
         return -1;
