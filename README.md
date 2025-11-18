@@ -164,7 +164,7 @@ python3 test_client.py alice
 - ✅ [5] Access Control: ACL-based permissions
 - ✅ [5] Logging: Comprehensive with timestamps, IPs, usernames
 - ✅ [5] Error Handling: 11 error codes, clear messages
-- ✅ [10] Data Persistence: Files in ./storage/, auto-save on write
+- ✅ [10] Data Persistence: Files in `./storage/`, auto-save on write **plus** persistent ACL & user registries (`nm_acl.dat`, `nm_users.dat`) so access control and user history survive SS/client restarts.
 - ✅ [5] Concurrent Access: RW locks + sentence-level mutexes
 
 ## Concurrency Implementation

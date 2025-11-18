@@ -51,7 +51,27 @@ void log_error(NameServer* nm, ErrorCode error, const char* details) {
     log_message(nm, "ERROR", NULL, 0, NULL, error_to_string(error), details);
 }
 
+// Persistence helpers (forward declarations)
+static void free_acl_list(AccessEntry* head);
+static void load_acl_metadata(NameServer* nm);
+void save_acl_metadata(NameServer* nm);
+static void apply_persisted_acl(NameServer* nm, FileMetadata* metadata);
+static void clear_persisted_acls(NameServer* nm);
+static void load_user_registry(NameServer* nm);
+static void save_user_registry(NameServer* nm);
+static RegisteredUser* find_registered_user(NameServer* nm, const char* username);
+static RegisteredUser* ensure_registered_user(NameServer* nm, const char* username);
+static void mark_user_active(NameServer* nm, const char* username, const char* ip, bool is_active);
+
 // ==================== TRIE OPERATIONS ====================
+
+static void free_acl_list(AccessEntry* head) {
+    while (head) {
+        AccessEntry* next = head->next;
+        free(head);
+        head = next;
+    }
+}
 
 TrieNode* create_trie_node() {
     TrieNode* node = (TrieNode*)calloc(1, sizeof(TrieNode));
@@ -105,13 +125,7 @@ void delete_file_trie(TrieNode* root, const char* filename) {
         current->is_end_of_word = false;
         if (current->file_metadata) {
             FileMetadata* metadata = (FileMetadata*)current->file_metadata;
-            // Free ACL
-            struct AccessEntry* entry = metadata->acl;
-            while (entry) {
-                struct AccessEntry* next = entry->next;
-                free(entry);
-                entry = next;
-            }
+            free_acl_list(metadata->acl);
             free(metadata);
             current->file_metadata = NULL;
         }
@@ -264,12 +278,19 @@ NameServer* init_name_server(int port) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         nm->clients[i] = NULL;
     }
+    nm->persisted_acls = NULL;
+    nm->registered_user_count = 0;
+    for (int i = 0; i < MAX_REGISTERED_USERS; i++) {
+        nm->user_registry[i] = NULL;
+    }
     
     // Initialize locks
     pthread_mutex_init(&nm->ss_lock, NULL);
     pthread_mutex_init(&nm->client_lock, NULL);
     pthread_mutex_init(&nm->trie_lock, NULL);
     pthread_mutex_init(&nm->log_lock, NULL);
+    pthread_mutex_init(&nm->registry_lock, NULL);
+    pthread_mutex_init(&nm->persistence_lock, NULL);
     
     // Open log file
     nm->log_file = fopen(LOG_FILE, "a");
@@ -324,6 +345,9 @@ NameServer* init_name_server(int port) {
     
     log_message(nm, "INFO", NULL, 0, NULL, "INIT", "Name Server initialized");
     printf("Name Server initialized on port %d\n", port);
+
+    load_acl_metadata(nm);
+    load_user_registry(nm);
     
     return nm;
 }
@@ -371,11 +395,18 @@ void destroy_name_server(NameServer* nm) {
         fclose(nm->log_file);
     }
     
+    for (int i = 0; i < nm->registered_user_count; i++) {
+        free(nm->user_registry[i]);
+    }
+    clear_persisted_acls(nm);
+    
     // Destroy locks
     pthread_mutex_destroy(&nm->ss_lock);
     pthread_mutex_destroy(&nm->client_lock);
     pthread_mutex_destroy(&nm->trie_lock);
     pthread_mutex_destroy(&nm->log_lock);
+    pthread_mutex_destroy(&nm->registry_lock);
+    pthread_mutex_destroy(&nm->persistence_lock);
     
     free(nm);
     printf("Name Server destroyed\n");
@@ -438,12 +469,14 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
         metadata->created_time = time(NULL);
         metadata->last_modified = time(NULL);
         metadata->last_accessed = time(NULL);
+    metadata->last_accessed_by[0] = '\0';
         metadata->file_size = 0;
         metadata->word_count = 0;
         metadata->char_count = 0;
         metadata->acl = NULL;
 
         insert_file_trie(nm->file_trie, files[i], metadata);
+        apply_persisted_acl(nm, metadata);
         put_in_cache(nm->cache, files[i], metadata);
     }
     pthread_mutex_unlock(&nm->trie_lock);
@@ -526,6 +559,7 @@ int register_client(NameServer* nm, const char* username, const char* ip,
     nm->client_count++;
     
     pthread_mutex_unlock(&nm->client_lock);
+    mark_user_active(nm, username, ip, true);
     
     char details[256];
     snprintf(details, sizeof(details), "Client_ID=%d IP=%s NM_Port=%d SS_Port=%d",
@@ -552,6 +586,7 @@ void deregister_client(NameServer* nm, int client_id) {
         snprintf(details, sizeof(details), "Client_ID=%d", client_id);
         log_message(nm, "INFO", client->ip, client->nm_port, client->username, 
                    "CLIENT_DISCONNECT", details);
+        mark_user_active(nm, client->username, client->ip, false);
         printf("Client %d (%s) disconnected\n", client_id, client->username);
     }
     
@@ -606,6 +641,7 @@ ErrorCode add_access(NameServer* nm, Client* client, const char* filename,
                     filename, username, access == ACCESS_READ ? "READ" : "WRITE");
             log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                        "UPDATE_ACCESS", details);
+            save_acl_metadata(nm);
             return ERR_SUCCESS;
         }
         entry = entry->next;
@@ -624,6 +660,7 @@ ErrorCode add_access(NameServer* nm, Client* client, const char* filename,
             filename, username, access == ACCESS_READ ? "READ" : "WRITE");
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "ADD_ACCESS", details);
+    save_acl_metadata(nm);
     
     return ERR_SUCCESS;
 }
@@ -658,6 +695,7 @@ ErrorCode remove_access(NameServer* nm, Client* client, const char* filename, co
             snprintf(details, sizeof(details), "File=%s User=%s", filename, username);
             log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                        "REMOVE_ACCESS", details);
+            save_acl_metadata(nm);
             return ERR_SUCCESS;
         }
         prev = entry;
@@ -665,6 +703,253 @@ ErrorCode remove_access(NameServer* nm, Client* client, const char* filename, co
     }
     
     return ERR_UNAUTHORIZED;
+}
+
+// ==================== PERSISTENCE HELPERS ====================
+
+static void write_metadata_recursive(FILE* fp, TrieNode* node) {
+    if (!node) return;
+    if (node->is_end_of_word && node->file_metadata) {
+        FileMetadata* metadata = (FileMetadata*)node->file_metadata;
+        fprintf(fp, "FILE|%s|%s\n", metadata->filename,
+                metadata->owner[0] ? metadata->owner : "");
+        AccessEntry* entry = metadata->acl;
+        while (entry) {
+            fprintf(fp, "ACL|%s|%s\n", entry->username,
+                    entry->access == ACCESS_WRITE ? "WRITE" : "READ");
+            entry = entry->next;
+        }
+        fprintf(fp, "END\n");
+    }
+    for (int i = 0; i < 256; i++) {
+        if (node->children[i]) {
+            write_metadata_recursive(fp, node->children[i]);
+        }
+    }
+}
+
+void save_acl_metadata(NameServer* nm) {
+    pthread_mutex_lock(&nm->persistence_lock);
+    FILE* fp = fopen(ACL_PERSIST_FILE, "w");
+    if (!fp) {
+        pthread_mutex_unlock(&nm->persistence_lock);
+        perror("Failed to persist ACL metadata");
+        return;
+    }
+    pthread_mutex_lock(&nm->trie_lock);
+    write_metadata_recursive(fp, nm->file_trie);
+    pthread_mutex_unlock(&nm->trie_lock);
+    fclose(fp);
+    pthread_mutex_unlock(&nm->persistence_lock);
+}
+
+static void clear_persisted_acls(NameServer* nm) {
+    PersistedAclEntry* entry = nm->persisted_acls;
+    while (entry) {
+        PersistedAclEntry* next = entry->next;
+        free_acl_list(entry->acl);
+        free(entry);
+        entry = next;
+    }
+    nm->persisted_acls = NULL;
+}
+
+static void load_acl_metadata(NameServer* nm) {
+    pthread_mutex_lock(&nm->persistence_lock);
+    clear_persisted_acls(nm);
+    FILE* fp = fopen(ACL_PERSIST_FILE, "r");
+    if (!fp) {
+        pthread_mutex_unlock(&nm->persistence_lock);
+        return;
+    }
+    char line[512];
+    PersistedAclEntry* current = NULL;
+    while (fgets(line, sizeof(line), fp)) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if (strncmp(line, "FILE|", 5) == 0) {
+            char* payload = line + 5;
+            char* filename = strtok(payload, "|");
+            char* owner = strtok(NULL, "|");
+            if (!filename) {
+                current = NULL;
+                continue;
+            }
+            PersistedAclEntry* entry = (PersistedAclEntry*)calloc(1, sizeof(PersistedAclEntry));
+            strncpy(entry->filename, filename, MAX_FILENAME - 1);
+            if (owner) {
+                strncpy(entry->owner, owner, MAX_USERNAME - 1);
+            }
+            entry->acl = NULL;
+            entry->next = nm->persisted_acls;
+            nm->persisted_acls = entry;
+            current = entry;
+        } else if (strncmp(line, "ACL|", 4) == 0 && current) {
+            char* payload = line + 4;
+            char* username = strtok(payload, "|");
+            char* access_str = strtok(NULL, "|");
+            if (!username || !access_str) {
+                continue;
+            }
+            AccessEntry* node = (AccessEntry*)calloc(1, sizeof(AccessEntry));
+            strncpy(node->username, username, MAX_USERNAME - 1);
+            node->access = (strcmp(access_str, "WRITE") == 0) ? ACCESS_WRITE : ACCESS_READ;
+            node->next = current->acl;
+            current->acl = node;
+        } else if (strcmp(line, "END") == 0) {
+            current = NULL;
+        }
+    }
+    fclose(fp);
+    pthread_mutex_unlock(&nm->persistence_lock);
+}
+
+static void apply_persisted_acl(NameServer* nm, FileMetadata* metadata) {
+    if (!metadata) return;
+    pthread_mutex_lock(&nm->persistence_lock);
+    PersistedAclEntry* entry = nm->persisted_acls;
+    while (entry) {
+        if (strcmp(entry->filename, metadata->filename) == 0) {
+            if (entry->owner[0] != '\0') {
+                strncpy(metadata->owner, entry->owner, MAX_USERNAME - 1);
+                metadata->owner[MAX_USERNAME - 1] = '\0';
+            }
+            free_acl_list(metadata->acl);
+            metadata->acl = NULL;
+            AccessEntry* src = entry->acl;
+            AccessEntry* tail = NULL;
+            while (src) {
+                AccessEntry* dup = (AccessEntry*)calloc(1, sizeof(AccessEntry));
+                strncpy(dup->username, src->username, MAX_USERNAME - 1);
+                dup->username[MAX_USERNAME - 1] = '\0';
+                dup->access = src->access;
+                if (!metadata->acl) {
+                    metadata->acl = dup;
+                } else {
+                    tail->next = dup;
+                }
+                tail = dup;
+                src = src->next;
+            }
+            break;
+        }
+        entry = entry->next;
+    }
+    pthread_mutex_unlock(&nm->persistence_lock);
+}
+
+static RegisteredUser* find_registered_user(NameServer* nm, const char* username) {
+    if (!username) return NULL;
+    for (int i = 0; i < nm->registered_user_count; i++) {
+        if (nm->user_registry[i] && strcmp(nm->user_registry[i]->username, username) == 0) {
+            return nm->user_registry[i];
+        }
+    }
+    return NULL;
+}
+
+static RegisteredUser* ensure_registered_user(NameServer* nm, const char* username) {
+    RegisteredUser* existing = find_registered_user(nm, username);
+    if (existing) {
+        return existing;
+    }
+    if (nm->registered_user_count >= MAX_REGISTERED_USERS) {
+        return NULL;
+    }
+    RegisteredUser* user = (RegisteredUser*)calloc(1, sizeof(RegisteredUser));
+    strncpy(user->username, username, MAX_USERNAME - 1);
+    user->first_seen = 0;
+    user->last_seen = 0;
+    user->is_active = false;
+    nm->user_registry[nm->registered_user_count++] = user;
+    return user;
+}
+
+static void save_user_registry(NameServer* nm) {
+    pthread_mutex_lock(&nm->persistence_lock);
+    FILE* fp = fopen(USER_REGISTRY_FILE, "w");
+    if (!fp) {
+        pthread_mutex_unlock(&nm->persistence_lock);
+        perror("Failed to persist user registry");
+        return;
+    }
+    pthread_mutex_lock(&nm->registry_lock);
+    for (int i = 0; i < nm->registered_user_count; i++) {
+        RegisteredUser* user = nm->user_registry[i];
+        if (!user) continue;
+        fprintf(fp, "%s|%s|%ld|%ld|%d\n",
+                user->username,
+                user->last_ip[0] ? user->last_ip : "",
+                (long)user->first_seen,
+                (long)user->last_seen,
+                user->is_active ? 1 : 0);
+    }
+    pthread_mutex_unlock(&nm->registry_lock);
+    fclose(fp);
+    pthread_mutex_unlock(&nm->persistence_lock);
+}
+
+static void load_user_registry(NameServer* nm) {
+    pthread_mutex_lock(&nm->persistence_lock);
+    FILE* fp = fopen(USER_REGISTRY_FILE, "r");
+    if (!fp) {
+        pthread_mutex_unlock(&nm->persistence_lock);
+        return;
+    }
+    pthread_mutex_lock(&nm->registry_lock);
+    for (int i = 0; i < nm->registered_user_count; i++) {
+        free(nm->user_registry[i]);
+        nm->user_registry[i] = NULL;
+    }
+    nm->registered_user_count = 0;
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        line[strcspn(line, "\r\n")] = '\0';
+        char* username = strtok(line, "|");
+        char* ip = strtok(NULL, "|");
+        char* first_seen_str = strtok(NULL, "|");
+        char* last_seen_str = strtok(NULL, "|");
+        char* active_str = strtok(NULL, "|");
+        if (!username) {
+            continue;
+        }
+        RegisteredUser* user = ensure_registered_user(nm, username);
+        if (!user) {
+            continue;
+        }
+        if (ip) {
+            strncpy(user->last_ip, ip, MAX_IP_LEN - 1);
+        }
+        user->first_seen = first_seen_str ? (time_t)atol(first_seen_str) : 0;
+        user->last_seen = last_seen_str ? (time_t)atol(last_seen_str) : 0;
+        user->is_active = active_str ? (atoi(active_str) != 0) : false;
+    }
+    pthread_mutex_unlock(&nm->registry_lock);
+    fclose(fp);
+    pthread_mutex_unlock(&nm->persistence_lock);
+}
+
+static void mark_user_active(NameServer* nm, const char* username, const char* ip, bool is_active) {
+    if (!username) return;
+    bool updated = false;
+    pthread_mutex_lock(&nm->registry_lock);
+    RegisteredUser* user = ensure_registered_user(nm, username);
+    if (user) {
+        if (ip && *ip) {
+            strncpy(user->last_ip, ip, MAX_IP_LEN - 1);
+            user->last_ip[MAX_IP_LEN - 1] = '\0';
+        }
+        time_t now = time(NULL);
+        if (user->first_seen == 0) {
+            user->first_seen = now;
+        }
+        user->last_seen = now;
+        user->is_active = is_active;
+        updated = true;
+    }
+    pthread_mutex_unlock(&nm->registry_lock);
+    if (updated) {
+        save_user_registry(nm);
+    }
 }
 
 // To be continued in next part...

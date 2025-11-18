@@ -1,5 +1,13 @@
 #include "name_server.h"
 
+static void record_last_access(FileMetadata* metadata, const char* username) {
+    if (!metadata) return;
+    if (username && *username) {
+        strncpy(metadata->last_accessed_by, username, MAX_USERNAME - 1);
+        metadata->last_accessed_by[MAX_USERNAME - 1] = '\0';
+    }
+}
+
 // ==================== FILE OPERATION HANDLERS ====================
 
 ErrorCode handle_view_files(NameServer* nm, Client* client, const char* flags, char* response) {
@@ -128,7 +136,9 @@ ErrorCode handle_create_file(NameServer* nm, Client* client, const char* filenam
     metadata->ss_id = ss->id;
     metadata->created_time = time(NULL);
     metadata->last_modified = time(NULL);
-    metadata->last_accessed = time(NULL);
+    record_last_access(metadata, client->username);
+    strncpy(metadata->last_accessed_by, client->username, MAX_USERNAME - 1);
+    metadata->last_accessed_by[MAX_USERNAME - 1] = '\0';
     metadata->file_size = 0;
     metadata->word_count = 0;
     metadata->char_count = 0;
@@ -142,6 +152,7 @@ ErrorCode handle_create_file(NameServer* nm, Client* client, const char* filenam
     snprintf(details, sizeof(details), "File=%s SS_ID=%d", filename, ss->id);
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "CREATE", details);
+    save_acl_metadata(nm);
     
     return ERR_SUCCESS;
 }
@@ -182,6 +193,7 @@ ErrorCode handle_delete_file(NameServer* nm, Client* client, const char* filenam
     snprintf(details, sizeof(details), "File=%s", filename);
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "DELETE", details);
+    save_acl_metadata(nm);
     
     return ERR_SUCCESS;
 }
@@ -208,7 +220,7 @@ ErrorCode handle_read_file(NameServer* nm, Client* client, const char* filename,
     // Return SS information to client for direct connection
     snprintf(response, BUFFER_SIZE, "SS_INFO %s %d", ss->ip, ss->client_port);
     
-    metadata->last_accessed = time(NULL);
+    record_last_access(metadata, client->username);
     
     char details[256];
     snprintf(details, sizeof(details), "File=%s SS_ID=%d", filename, ss->id);
@@ -238,7 +250,7 @@ ErrorCode handle_write_file(NameServer* nm, Client* client, const char* filename
     }
     
     metadata->last_modified = time(NULL);
-    metadata->last_accessed = time(NULL);
+    record_last_access(metadata, client->username);
     
     char details[256];
     snprintf(details, sizeof(details), "File=%s Sentence=%d SS_ID=%d", 
@@ -279,46 +291,62 @@ ErrorCode handle_info_file(NameServer* nm, Client* client, const char* filename,
     
     char time_created[64], time_modified[64], time_accessed[64];
     strftime(time_created, sizeof(time_created), "%Y-%m-%d %H:%M:%S", 
-            localtime(&metadata->created_time));
+        localtime(&metadata->created_time));
     strftime(time_modified, sizeof(time_modified), "%Y-%m-%d %H:%M:%S", 
-            localtime(&metadata->last_modified));
+        localtime(&metadata->last_modified));
     strftime(time_accessed, sizeof(time_accessed), "%Y-%m-%d %H:%M:%S", 
-            localtime(&metadata->last_accessed));
-    
-    snprintf(response, BUFFER_SIZE,
-             "File: %s\n"
-             "Owner: %s\n"
-             "Size: %zu bytes\n"
-             "Word Count: %d\n"
-             "Character Count: %d\n"
-             "Created: %s\n"
-             "Last Modified: %s\n"
-             "Last Accessed: %s\n"
-             "Storage Server: %d\n"
-             "Your Access: %s\n",
-             metadata->filename,
-             metadata->owner[0] ? metadata->owner : "none",
-             metadata->file_size,
-             metadata->word_count,
-             metadata->char_count,
-             time_created,
-             time_modified,
-             time_accessed,
-             metadata->ss_id,
-             access == ACCESS_WRITE ? "READ/WRITE" : "READ");
-    
-    // Add ACL info
+        localtime(&metadata->last_accessed));
+
+    const char* owner_display = metadata->owner[0] ? metadata->owner : "none";
+    const char* last_user = metadata->last_accessed_by[0] ? metadata->last_accessed_by : "unknown";
+
+    char access_summary[BUFFER_SIZE / 2];
+    size_t access_len = 0;
+    access_len += snprintf(access_summary + access_len, sizeof(access_summary) - access_len,
+               "%s (RW)", owner_display);
+    AccessEntry* acl_entry = metadata->acl;
+    while (acl_entry && access_len < sizeof(access_summary) - 1) {
+    const char* perm = (acl_entry->access == ACCESS_WRITE) ? "RW" : "R";
+    access_len += snprintf(access_summary + access_len,
+                   sizeof(access_summary) - access_len,
+                   ", %s (%s)", acl_entry->username, perm);
+    acl_entry = acl_entry->next;
+    }
+    if (access_len == 0) {
+    strncpy(access_summary, "None", sizeof(access_summary) - 1);
+    access_summary[sizeof(access_summary) - 1] = '\0';
+    }
+
+    size_t offset = 0;
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> File: %s\n", metadata->filename);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Owner: %s\n", owner_display);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Created: %s\n", time_created);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Last Modified: %s\n", time_modified);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Size: %zu bytes\n", metadata->file_size);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Words: %d\n", metadata->word_count);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Characters: %d\n", metadata->char_count);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Access: %s\n", access_summary);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset,
+               "--> Last Accessed: %s by %s\n",
+               time_accessed,
+               last_user);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Storage Server: %d\n", metadata->ss_id);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Your Access: %s\n",
+               access == ACCESS_WRITE ? "READ/WRITE" : "READ");
+
+    // Add ACL info for owner (ensure owner appears in list)
     if (is_owner(metadata, client->username)) {
-        strcat(response, "\nAccess Control List:\n");
-        struct AccessEntry* entry = metadata->acl;
-        while (entry) {
-            char acl_line[128];
-            snprintf(acl_line, sizeof(acl_line), "  %s: %s\n",
-                    entry->username,
-                    entry->access == ACCESS_WRITE ? "READ/WRITE" : "READ");
-            strcat(response, acl_line);
-            entry = entry->next;
-        }
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "--> Access List:\n");
+    offset += snprintf(response + offset, BUFFER_SIZE - offset, "    - %s (RW)\n", owner_display);
+    AccessEntry* entry = metadata->acl;
+    while (entry && offset < BUFFER_SIZE - 1) {
+        const char* perm = (entry->access == ACCESS_WRITE) ? "RW" : "R";
+        offset += snprintf(response + offset, BUFFER_SIZE - offset,
+                   "    - %s (%s)\n",
+                   entry->username,
+                   perm);
+        entry = entry->next;
+    }
     }
     
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
@@ -485,32 +513,46 @@ ErrorCode handle_undo_file(NameServer* nm, Client* client, const char* filename)
 // ==================== USER MANAGEMENT ====================
 
 ErrorCode handle_list_users(NameServer* nm, char* response) {
-    pthread_mutex_lock(&nm->client_lock);
-    
-    char buffer[BUFFER_SIZE] = "Registered Users:\n";
+    pthread_mutex_lock(&nm->registry_lock);
+    if (nm->registered_user_count == 0) {
+        pthread_mutex_unlock(&nm->registry_lock);
+        strcpy(response, "No users registered\n");
+        return ERR_SUCCESS;
+    }
+
+    char buffer[BUFFER_SIZE * 2] = "Registered Users:\n";
     size_t offset = strlen(buffer);
-    
-    for (int i = 0; i < nm->client_count; i++) {
-        if (nm->clients[i] && nm->clients[i]->is_active) {
-            offset += snprintf(buffer + offset, BUFFER_SIZE - offset,
-                             "  %s (@%s)\n", 
-                             nm->clients[i]->username,
-                             nm->clients[i]->ip);
+    offset += snprintf(buffer + offset, sizeof(buffer) - offset,
+                      "%-16s %-16s %-8s %-19s\n",
+                      "USERNAME", "LAST_IP", "STATUS", "LAST_SEEN");
+    offset += snprintf(buffer + offset, sizeof(buffer) - offset,
+                      "------------------------------------------------------------\n");
+
+    for (int i = 0; i < nm->registered_user_count; i++) {
+        RegisteredUser* user = nm->user_registry[i];
+        if (!user) continue;
+        char time_buf[32] = "-";
+        if (user->last_seen > 0) {
+            struct tm* tm_info = localtime(&user->last_seen);
+            if (tm_info) {
+                strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", tm_info);
+            }
+        }
+        offset += snprintf(buffer + offset, sizeof(buffer) - offset,
+                           "%-16s %-16s %-8s %-19s\n",
+                           user->username,
+                           user->last_ip[0] ? user->last_ip : "-",
+                           user->is_active ? "ONLINE" : "OFFLINE",
+                           time_buf);
+        if (offset >= sizeof(buffer) - 1) {
+            break;
         }
     }
-    
-    pthread_mutex_unlock(&nm->client_lock);
-    
-    if (offset == strlen("Registered Users:\n")) {
-        strcpy(response, "No users currently connected\n");
-    } else {
-        size_t copy_len = offset;
-        if (copy_len >= BUFFER_SIZE) {
-            copy_len = BUFFER_SIZE - 1;
-        }
-        memcpy(response, buffer, copy_len);
-        response[copy_len] = '\0';
-    }
+    pthread_mutex_unlock(&nm->registry_lock);
+
+    size_t copy_len = (offset < sizeof(buffer)) ? offset : sizeof(buffer) - 1;
+    memcpy(response, buffer, copy_len);
+    response[copy_len] = '\0';
     
     return ERR_SUCCESS;
 }

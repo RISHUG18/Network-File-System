@@ -23,6 +23,9 @@
 #define BUFFER_SIZE 4096
 #define LOG_FILE "nm_log.txt"
 #define CACHE_SIZE 100
+#define ACL_PERSIST_FILE "nm_acl.dat"
+#define USER_REGISTRY_FILE "nm_users.dat"
+#define MAX_REGISTERED_USERS 500
 
 // Error Codes
 typedef enum {
@@ -55,6 +58,20 @@ typedef struct TrieNode {
 } TrieNode;
 
 // File Metadata
+typedef struct RegisteredUser {
+    char username[MAX_USERNAME];
+    char last_ip[MAX_IP_LEN];
+    time_t first_seen;
+    time_t last_seen;
+    bool is_active;
+} RegisteredUser;
+
+typedef struct AccessEntry {
+    char username[MAX_USERNAME];
+    AccessRight access;
+    struct AccessEntry* next;
+} AccessEntry;
+
 typedef struct FileMetadata {
     char filename[MAX_FILENAME];
     char owner[MAX_USERNAME];
@@ -62,16 +79,19 @@ typedef struct FileMetadata {
     time_t created_time;
     time_t last_modified;
     time_t last_accessed;
+    char last_accessed_by[MAX_USERNAME];
     size_t file_size;
     int word_count;
     int char_count;
-    // Access Control List
-    struct AccessEntry {
-        char username[MAX_USERNAME];
-        AccessRight access;
-        struct AccessEntry* next;
-    }* acl;
+    AccessEntry* acl;
 } FileMetadata;
+
+typedef struct PersistedAclEntry {
+    char filename[MAX_FILENAME];
+    char owner[MAX_USERNAME];
+    AccessEntry* acl;
+    struct PersistedAclEntry* next;
+} PersistedAclEntry;
 
 // Storage Server Info
 typedef struct StorageServer {
@@ -131,11 +151,18 @@ typedef struct NameServer {
     // Cache
     LRUCache* cache;
     
+    // Persistence helpers
+    struct PersistedAclEntry* persisted_acls;
+    RegisteredUser* user_registry[MAX_REGISTERED_USERS];
+    int registered_user_count;
+
     // Locks
     pthread_mutex_t ss_lock;
     pthread_mutex_t client_lock;
     pthread_mutex_t trie_lock;
     pthread_mutex_t log_lock;
+    pthread_mutex_t registry_lock;
+    pthread_mutex_t persistence_lock;
     
     // Logging
     FILE* log_file;
@@ -194,6 +221,7 @@ ErrorCode add_access(NameServer* nm, Client* client, const char* filename,
 ErrorCode remove_access(NameServer* nm, Client* client, const char* filename, const char* username);
 AccessRight check_access(FileMetadata* metadata, const char* username);
 bool is_owner(FileMetadata* metadata, const char* username);
+void save_acl_metadata(NameServer* nm);
 
 // User management
 ErrorCode handle_list_users(NameServer* nm, char* response);
