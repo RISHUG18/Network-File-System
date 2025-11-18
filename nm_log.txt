@@ -1,7 +1,0 @@
-[2025-11-18 19:30:54] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
-[2025-11-18 19:31:17] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=0
-[2025-11-18 19:31:33] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
-[2025-11-18 19:31:48] [INFO] IP=127.0.0.1 Port=7001 User=ali Op=CLIENT_REGISTER Details=Client_ID=1 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
-[2025-11-18 19:32:15] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=new SS_ID=0
-[2025-11-18 19:33:10] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=ADD_ACCESS Details=File=new User=ali Access=WRITE
-[2025-11-18 19:33:15] [INFO] IP=127.0.0.1 Port=7001 User=ali Op=INFO Details=new

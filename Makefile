@@ -77,7 +77,7 @@ client.o: client.c $(CLIENT_HEADERS)
 
 # Clean build artifacts
 clean:
-	rm -f $(NM_OBJS) $(SS_OBJS) $(CLIENT_OBJS) $(NM_TARGET) $(SS_TARGET) $(CLIENT_TARGET) nm_log.txt ss_log.txt
+	rm -f $(NM_OBJS) $(SS_OBJS) $(CLIENT_OBJS) $(NM_TARGET) $(SS_TARGET) $(CLIENT_TARGET) nm_log.txt ss_log.txt nm_users.dat
 	rm -rf storage/
 	@echo "Cleaned build artifacts"
 
