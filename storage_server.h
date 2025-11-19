@@ -23,7 +23,7 @@
 #define BUFFER_SIZE 4096
 #define MAX_CONTENT_SIZE (1024 * 1024)  // 1MB max file size
 #define LOG_FILE "ss_log.txt"
-#define UNDO_HISTORY_SIZE 100
+#define UNDO_HISTORY_SIZE 10
 #define STORAGE_DIR "./storage"
 
 // Error Codes (matching NM)
