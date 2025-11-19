@@ -1,0 +1,17 @@
+[2025-11-19 18:24:48] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-19 18:24:48] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-19 18:24:48] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-19 18:25:07] [INFO] Op=CREATE Details=File=new.sh
+[2025-11-19 18:25:17] [INFO] Op=WRITE Details=File=new.sh Sentence=0 Word=0
+[2025-11-19 18:25:19] [INFO] Op=COMMIT Details=File=new.sh Sentence=0
+[2025-11-19 18:26:32] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-19 18:26:32] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-19 18:26:32] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-19 18:26:51] [INFO] Op=CREATE Details=File=new
+[2025-11-19 18:27:17] [INFO] Op=WRITE Details=File=new Sentence=0 Word=0
+[2025-11-19 18:27:19] [INFO] Op=COMMIT Details=File=new Sentence=0
+[2025-11-19 18:27:34] [INFO] Op=WRITE Details=File=new Sentence=0 Word=0
+[2025-11-19 18:27:39] [INFO] Op=WRITE Details=File=new Sentence=1 Word=0
+[2025-11-19 18:27:41] [INFO] Op=COMMIT Details=File=new Sentence=1
+[2025-11-19 18:27:44] [INFO] Op=COMMIT Details=File=new Sentence=0
+[2025-11-19 18:27:53] [WARN] Op=NM_DISCONNECT Details=Connection lost

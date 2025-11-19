@@ -87,8 +87,7 @@ void cmd_write_file(Client* client, const char* filename, int sentence_num) {
     printf("✓ Sentence locked\n");
     printf("\nWrite Mode - Direct Protocol\n");
     printf("Format: <word_index> <content>\n");
-    printf("Type 'ETIRW' to finalize changes and unlock\n");
-    printf("Type 'cancel' to cancel without saving\n\n");
+    printf("Type 'ETIRW' to finalize changes and unlock\n\n");
     
     char line[BUFFER_SIZE];
     bool done = false;
@@ -121,13 +120,6 @@ void cmd_write_file(Client* client, const char* filename, int sentence_num) {
             } else {
                 printf("✗ Failed to finalize: %s\n", response);
             }
-            done = true;
-        }
-        // Check for cancel
-        else if (strcmp(line, "cancel") == 0) {
-            printf("Cancelling changes...\n");
-            send_ss_command(ss_socket, "ETIRW", response, sizeof(response));
-            printf("✓ Cancelled\n");
             done = true;
         }
         // Parse as "<word_index> <content>"

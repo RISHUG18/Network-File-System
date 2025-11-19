@@ -121,7 +121,6 @@ write myfile.txt 0
 **Write Commands**:
 - `write <word_index> <new_word>` - Update word at index
 - `done` - Finish and unlock
-- `cancel` - Cancel and unlock
 
 ##### STREAM - Stream File Word-by-Word
 ```bash
@@ -367,7 +366,6 @@ Write Mode (ETIRW Protocol)
 Commands:
   write <word_index> <new_word>  - Update word at index
   done                           - Finish and unlock
-  cancel                         - Cancel and unlock
 
 write> write 0 Hello
 ✓ Word updated successfully
@@ -422,7 +420,7 @@ The client handles all error conditions:
 
 ## Best Practices
 
-1. **Always unlock sentences** - Use `done` or `cancel` in write mode
+1. **Always unlock sentences** - Use `done` in write mode
 2. **Check permissions** - Use `info` to see file access before writing
 3. **Handle errors** - Read error messages carefully
 4. **Clean exit** - Use `quit` to disconnect properly

@@ -628,72 +628,71 @@ ErrorCode stream_file(StorageServer* ss, int client_fd, const char* filename) {
     }
     
     pthread_rwlock_rdlock(&file->file_lock);
-    pthread_mutex_lock(&file->structure_lock);
     
-    // Send file word by word with 0.1s delay
-    SentenceNode* current = file->head;
+    FILE* fp = fopen(file->filepath, "r");
+    if (!fp) {
+        pthread_rwlock_unlock(&file->file_lock);
+        return ERR_SYSTEM_ERROR;
+    }
+
+    char* buffer = (char*)malloc(MAX_CONTENT_SIZE);
+    if (!buffer) {
+        fclose(fp);
+        pthread_rwlock_unlock(&file->file_lock);
+        return ERR_SYSTEM_ERROR;
+    }
+
+    size_t bytes_read = fread(buffer, 1, MAX_CONTENT_SIZE - 1, fp);
+    buffer[bytes_read] = '\0';
+    fclose(fp);
+
+    // Stream word by word
+    char* saveptr;
+    char* token = strtok_r(buffer, " \t\n", &saveptr);
     
-    while (current) {
-        // Send each word in the sentence
-        for (int i = 0; i < current->word_count; i++) {
-            const char* word = current->words[i];
-            size_t word_len = strlen(word);
-            bool append_delim = (i == current->word_count - 1) && (current->delimiter != '\0');
-
-            char word_msg[BUFFER_SIZE];
-            size_t msg_len = 0;
-
-            if (!append_delim && word_len < sizeof(word_msg) - 1) {
-                memcpy(word_msg, word, word_len);
-                word_msg[word_len] = '\n';
-                msg_len = word_len + 1;
-            } else if (append_delim && word_len < sizeof(word_msg) - 2) {
-                memcpy(word_msg, word, word_len);
-                word_msg[word_len] = current->delimiter;
-                word_msg[word_len + 1] = '\n';
-                msg_len = word_len + 2;
+    while (token) {
+        // Check if token ends with a delimiter
+        size_t len = strlen(token);
+        bool has_delim = false;
+        char delim = '\0';
+        
+        if (len > 0 && is_sentence_delimiter(token[len-1])) {
+            has_delim = true;
+            delim = token[len-1];
+            token[len-1] = '\0'; // Remove delimiter for now
+            len--;
+        }
+        
+        if (len > 0) {
+            char msg[BUFFER_SIZE];
+            if (has_delim) {
+                snprintf(msg, sizeof(msg), "%s%c\n", token, delim);
             } else {
-                // Fallback for very long words: stream in pieces while preserving delimiter
-                ssize_t sent_bytes = send(client_fd, word, word_len, MSG_NOSIGNAL);
-                if (sent_bytes <= 0) {
-                    pthread_mutex_unlock(&file->structure_lock);
-                    pthread_rwlock_unlock(&file->file_lock);
-                    return ERR_SYSTEM_ERROR;
-                }
-
-                if (append_delim) {
-                    char tail[2] = { current->delimiter, '\n' };
-                    sent_bytes = send(client_fd, tail, sizeof(tail), MSG_NOSIGNAL);
-                } else {
-                    char newline = '\n';
-                    sent_bytes = send(client_fd, &newline, 1, MSG_NOSIGNAL);
-                }
-
-                if (sent_bytes <= 0) {
-                    pthread_mutex_unlock(&file->structure_lock);
-                    pthread_rwlock_unlock(&file->file_lock);
-                    return ERR_SYSTEM_ERROR;
-                }
-
-                continue;
+                snprintf(msg, sizeof(msg), "%s\n", token);
             }
-
-            ssize_t sent_bytes = send(client_fd, word_msg, msg_len, MSG_NOSIGNAL);
-            if (sent_bytes <= 0) {
-                // Client disconnected
-                pthread_mutex_unlock(&file->structure_lock);
+            
+            if (send(client_fd, msg, strlen(msg), MSG_NOSIGNAL) <= 0) {
+                free(buffer);
                 pthread_rwlock_unlock(&file->file_lock);
                 return ERR_SYSTEM_ERROR;
             }
-            
-            // 0.1 second delay
+            usleep(100000); // 0.1s delay
+        } else if (has_delim) {
+            // Token was just a delimiter?
+            char msg[4];
+            snprintf(msg, sizeof(msg), "%c\n", delim);
+            if (send(client_fd, msg, strlen(msg), MSG_NOSIGNAL) <= 0) {
+                free(buffer);
+                pthread_rwlock_unlock(&file->file_lock);
+                return ERR_SYSTEM_ERROR;
+            }
             usleep(100000);
         }
         
-        current = current->next;
+        token = strtok_r(NULL, " \t\n", &saveptr);
     }
     
-    pthread_mutex_unlock(&file->structure_lock);
+    free(buffer);
     
     // Send STOP marker
     send(client_fd, "STOP\n", 5, MSG_NOSIGNAL);

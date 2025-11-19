@@ -848,8 +848,17 @@ ErrorCode read_file(StorageServer* ss, const char* filename, char* content, size
     
     pthread_rwlock_rdlock(&file->file_lock);
     
-    rebuild_file_content(file, content);
-    *size = strlen(content);
+    FILE* fp = fopen(file->filepath, "r");
+    if (!fp) {
+        pthread_rwlock_unlock(&file->file_lock);
+        return ERR_SYSTEM_ERROR;
+    }
+
+    size_t bytes_read = fread(content, 1, MAX_CONTENT_SIZE - 1, fp);
+    content[bytes_read] = '\0';
+    *size = bytes_read;
+    
+    fclose(fp);
     
     file->last_accessed = time(NULL);
     
