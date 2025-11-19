@@ -61,3 +61,19 @@
 [2025-11-19 00:54:41] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
 [2025-11-19 00:54:45] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=new SS_ID=0
 [2025-11-19 00:54:54] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=2 (Reconnected)
+[2025-11-19 11:50:33] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-19 11:51:49] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=0
+[2025-11-19 11:52:48] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-19 11:52:52] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=CREATE Details=File=new SS_ID=0
+[2025-11-19 11:52:55] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=INFO Details=new
+[2025-11-19 11:53:27] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=CREATE Details=File=newtest SS_ID=0
+[2025-11-19 11:53:29] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=INFO Details=newtest
+[2025-11-19 11:55:16] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-19 11:55:28] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-19 11:55:35] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-19 11:56:20] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-19 11:56:25] [INFO] IP=127.0.0.1 Port=8082 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8082 Client_Port=9002 Files=2
+[2025-11-19 11:56:29] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-19 11:56:35] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=CREATE Details=File=test SS_ID=0
+[2025-11-19 11:56:38] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=INFO Details=test
+[2025-11-19 11:56:49] [INFO] IP=127.0.0.1 Port=7001 User=rishu Op=CLIENT_DISCONNECT Details=Client_ID=0

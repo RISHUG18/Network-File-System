@@ -165,7 +165,7 @@ ErrorCode stream_file(StorageServer* ss, int client_fd, const char* filename);
 
 // File info
 ErrorCode get_file_info(StorageServer* ss, const char* filename, 
-                       size_t* size, int* words, int* chars);
+                       size_t* size, int* words, int* chars, time_t* last_accessed);
 
 // Persistence
 bool save_file_to_disk(FileEntry* file);

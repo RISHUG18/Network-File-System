@@ -315,7 +315,7 @@ ErrorCode stream_file(StorageServer* ss, int client_fd, const char* filename) {
 // ==================== FILE INFO ====================
 
 ErrorCode get_file_info(StorageServer* ss, const char* filename, 
-                       size_t* size, int* words, int* chars) {
+                       size_t* size, int* words, int* chars, time_t* last_accessed) {
     FileEntry* file = find_file(ss, filename);
     if (!file) {
         return ERR_FILE_NOT_FOUND;
@@ -326,6 +326,9 @@ ErrorCode get_file_info(StorageServer* ss, const char* filename,
     *size = file->total_size;
     *words = file->total_words;
     *chars = file->total_chars;
+    if (last_accessed) {
+        *last_accessed = file->last_accessed;
+    }
     
     pthread_rwlock_unlock(&file->file_lock);
     

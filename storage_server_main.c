@@ -130,10 +130,11 @@ void* handle_nm_connection(void* arg) {
         else if (strcmp(cmd, "INFO") == 0 && arg_count >= 1) {
             size_t size;
             int words, chars;
-            ErrorCode err = get_file_info(ss, args[0], &size, &words, &chars);
+            time_t last_accessed;
+            ErrorCode err = get_file_info(ss, args[0], &size, &words, &chars, &last_accessed);
             if (err == ERR_SUCCESS) {
-                snprintf(response, sizeof(response), "SIZE:%zu WORDS:%d CHARS:%d\n",
-                        size, words, chars);
+                snprintf(response, sizeof(response), "SIZE:%zu WORDS:%d CHARS:%d LAST_ACCESS:%ld\n",
+                        size, words, chars, (long)last_accessed);
             } else {
                 snprintf(response, sizeof(response), "ERROR:%s\n", error_to_string(err));
             }

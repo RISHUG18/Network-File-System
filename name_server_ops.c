@@ -218,6 +218,7 @@ ErrorCode handle_read_file(NameServer* nm, Client* client, const char* filename,
     // Return SS information to client for direct connection
     snprintf(response, BUFFER_SIZE, "SS_INFO %s %d", ss->ip, ss->client_port);
     
+    metadata->last_accessed = time(NULL);
     record_last_access(metadata, client->username);
     
     char details[256];
@@ -248,6 +249,7 @@ ErrorCode handle_write_file(NameServer* nm, Client* client, const char* filename
     }
     
     metadata->last_modified = time(NULL);
+    metadata->last_accessed = time(NULL);
     record_last_access(metadata, client->username);
     
     char details[256];
@@ -282,8 +284,12 @@ ErrorCode handle_info_file(NameServer* nm, Client* client, const char* filename,
         char ss_response[BUFFER_SIZE];
         if (forward_to_ss(nm, ss->id, command, ss_response) >= 0) {
             // Parse response and update metadata
-            sscanf(ss_response, "SIZE:%zu WORDS:%d CHARS:%d",
-                   &metadata->file_size, &metadata->word_count, &metadata->char_count);
+            long last_access_ts = 0;
+            sscanf(ss_response, "SIZE:%zu WORDS:%d CHARS:%d LAST_ACCESS:%ld",
+                   &metadata->file_size, &metadata->word_count, &metadata->char_count, &last_access_ts);
+            if (last_access_ts > 0) {
+                metadata->last_accessed = (time_t)last_access_ts;
+            }
         }
     }
     
