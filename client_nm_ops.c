@@ -235,3 +235,80 @@ void cmd_remove_access(Client* client, const char* filename, const char* target_
         printf("✗ Invalid response\n");
     }
 }
+
+void cmd_request_access(Client* client, const char* filename, char access_type) {
+    char command[512];
+    const char* flag = (access_type == 'W' || access_type == 'w') ? "-W" : "-R";
+    snprintf(command, sizeof(command), "REQACCESS %s %s", flag, filename);
+
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("✓ %s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
+void cmd_list_requests(Client* client, const char* filename) {
+    char command[512];
+    snprintf(command, sizeof(command), "LISTREQUESTS %s", filename);
+
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("\n%s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
+void cmd_process_request(Client* client, const char* filename, const char* target_user, bool approve) {
+    char command[512];
+    snprintf(command, sizeof(command), "PROCESSREQUEST %s %s %s", filename, target_user,
+             approve ? "APPROVE" : "DENY");
+
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("✓ %s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}

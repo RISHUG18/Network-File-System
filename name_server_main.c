@@ -257,6 +257,43 @@ void* handle_connection(void* arg) {
                     }
                 }
             }
+            else if (strcmp(cmd, "REQACCESS") == 0) {
+                if (arg_count < 2) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: REQACCESS <-R|-W> <filename>");
+                } else {
+                    AccessRight requested = (strcmp(args[0], "-W") == 0) ? 
+                                            ACCESS_WRITE : ACCESS_READ;
+                    error = handle_request_access(nm, client, args[1], requested, response_msg);
+                }
+            }
+            else if (strcmp(cmd, "LISTREQUESTS") == 0) {
+                if (arg_count < 1) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: LISTREQUESTS <filename>");
+                } else {
+                    error = handle_list_requests(nm, client, args[0], response_msg);
+                }
+            }
+            else if (strcmp(cmd, "PROCESSREQUEST") == 0) {
+                if (arg_count < 3) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: PROCESSREQUEST <filename> <username> <APPROVE|DENY>");
+                } else {
+                    bool approve;
+                    if (strcmp(args[2], "APPROVE") == 0) {
+                        approve = true;
+                    } else if (strcmp(args[2], "DENY") == 0) {
+                        approve = false;
+                    } else {
+                        error = ERR_INVALID_OPERATION;
+                        strcpy(response_msg, "Action must be APPROVE or DENY");
+                    }
+                    if (error == ERR_SUCCESS) {
+                        error = handle_process_request(nm, client, args[0], args[1], approve, response_msg);
+                    }
+                }
+            }
             else if (strcmp(cmd, "QUIT") == 0 || strcmp(cmd, "EXIT") == 0) {
                 strcpy(response_msg, "Goodbye!");
                 send_response(socket_fd, ERR_SUCCESS, response_msg);

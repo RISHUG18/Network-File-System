@@ -53,6 +53,7 @@ void log_error(NameServer* nm, ErrorCode error, const char* details) {
 
 // Persistence helpers (forward declarations)
 static void free_acl_list(AccessEntry* head);
+static void free_access_requests(AccessRequest* head);
 static void load_user_registry(NameServer* nm);
 static void save_user_registry(NameServer* nm);
 static RegisteredUser* find_registered_user(NameServer* nm, const char* username);
@@ -64,6 +65,14 @@ static void mark_user_active(NameServer* nm, const char* username, const char* i
 static void free_acl_list(AccessEntry* head) {
     while (head) {
         AccessEntry* next = head->next;
+        free(head);
+        head = next;
+    }
+}
+
+static void free_access_requests(AccessRequest* head) {
+    while (head) {
+        AccessRequest* next = head->next;
         free(head);
         head = next;
     }
@@ -122,6 +131,7 @@ void delete_file_trie(TrieNode* root, const char* filename) {
         if (current->file_metadata) {
             FileMetadata* metadata = (FileMetadata*)current->file_metadata;
             free_acl_list(metadata->acl);
+            free_access_requests(metadata->pending_requests);
             free(metadata);
             current->file_metadata = NULL;
         }
@@ -143,6 +153,7 @@ void destroy_trie(TrieNode* root) {
             free(entry);
             entry = next;
         }
+        free_access_requests(metadata->pending_requests);
         free(metadata);
     }
     free(root);
@@ -594,10 +605,12 @@ void deregister_storage_server(NameServer* nm, int ss_id) {
     StorageServer* ss = nm->storage_servers[ss_id];
     if (ss) {
         ss->is_active = false;
-        char details[128];
-        snprintf(details, sizeof(details), "SS_ID=%d", ss_id);
+        char details[256];
+        snprintf(details, sizeof(details), "SS_ID=%d IP=%s Client_Port=%d File_Count=%d", 
+                 ss_id, ss->ip, ss->client_port, ss->file_count);
         log_message(nm, "WARN", ss->ip, ss->nm_port, NULL, "SS_DISCONNECT", details);
-        printf("Storage Server %d disconnected\n", ss_id);
+        printf("✗ Storage Server %d disconnected (IP: %s, Client Port: %d, Files: %d)\n", 
+               ss_id, ss->ip, ss->client_port, ss->file_count);
     }
     
     pthread_mutex_unlock(&nm->ss_lock);

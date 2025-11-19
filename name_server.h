@@ -71,6 +71,13 @@ typedef struct AccessEntry {
     struct AccessEntry* next;
 } AccessEntry;
 
+typedef struct AccessRequest {
+    char username[MAX_USERNAME];
+    AccessRight requested_access;
+    time_t requested_time;
+    struct AccessRequest* next;
+} AccessRequest;
+
 typedef struct FileMetadata {
     char filename[MAX_FILENAME];
     char owner[MAX_USERNAME];
@@ -83,6 +90,7 @@ typedef struct FileMetadata {
     int word_count;
     int char_count;
     AccessEntry* acl;
+    AccessRequest* pending_requests;
 } FileMetadata;
 
 // Storage Server Info
@@ -212,6 +220,12 @@ ErrorCode add_access(NameServer* nm, Client* client, const char* filename,
 ErrorCode remove_access(NameServer* nm, Client* client, const char* filename, const char* username);
 AccessRight check_access(FileMetadata* metadata, const char* username);
 bool is_owner(FileMetadata* metadata, const char* username);
+ErrorCode handle_request_access(NameServer* nm, Client* client, const char* filename,
+                               AccessRight requested_access, char* response);
+ErrorCode handle_list_requests(NameServer* nm, Client* client, const char* filename, char* response);
+ErrorCode handle_process_request(NameServer* nm, Client* client, const char* filename,
+                                const char* target_user, bool approve,
+                                char* response);
 
 // User management
 ErrorCode handle_list_users(NameServer* nm, char* response);

@@ -153,6 +153,11 @@ addaccess W myfile.txt charlie  # Write access (includes read)
 # Revoke access
 remaccess myfile.txt bob
 
+# Request/approve access
+requestaccess R scripts.sh      # Ask for read access
+listrequests scripts.sh         # Owner lists pending requests
+processrequest scripts.sh bob approve  # Owner approves Bob
+
 # Help
 help
 

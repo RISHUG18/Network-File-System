@@ -8,6 +8,29 @@ static void record_last_access(FileMetadata* metadata, const char* username) {
     }
 }
 
+static const char* access_to_string(AccessRight access) {
+    return (access == ACCESS_WRITE) ? "WRITE" : "READ";
+}
+
+static AccessRequest* find_access_request(FileMetadata* metadata, const char* username, AccessRequest** prev_out) {
+    if (prev_out) {
+        *prev_out = NULL;
+    }
+    AccessRequest* current = metadata ? metadata->pending_requests : NULL;
+    AccessRequest* prev = NULL;
+    while (current) {
+        if (strcmp(current->username, username) == 0) {
+            if (prev_out) {
+                *prev_out = prev;
+            }
+            return current;
+        }
+        prev = current;
+        current = current->next;
+    }
+    return NULL;
+}
+
 // ==================== FILE OPERATION HANDLERS ====================
 
 ErrorCode handle_view_files(NameServer* nm, Client* client, const char* flags, char* response) {
@@ -140,6 +163,7 @@ ErrorCode handle_create_file(NameServer* nm, Client* client, const char* filenam
                     metadata->word_count = 0;
                     metadata->char_count = 0;
                     metadata->acl = NULL;
+                    metadata->pending_requests = NULL;
                     
                     insert_file_trie(nm->file_trie, filename, metadata);
                     put_in_cache(nm->cache, filename, metadata);
@@ -527,6 +551,159 @@ ErrorCode handle_undo_file(NameServer* nm, Client* client, const char* filename)
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "UNDO", details);
     
+    return ERR_SUCCESS;
+}
+
+// ==================== ACCESS REQUESTS ====================
+
+static bool has_sufficient_access(AccessRight current, AccessRight requested) {
+    if (current == ACCESS_WRITE) {
+        return true;
+    }
+    return current == requested;
+}
+
+ErrorCode handle_request_access(NameServer* nm, Client* client, const char* filename,
+                               AccessRight requested_access, char* response) {
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* metadata = search_file_trie(nm->file_trie, filename);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    if (!metadata) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    if (is_owner(metadata, client->username)) {
+        strcpy(response, "You already own this file");
+        return ERR_INVALID_OPERATION;
+    }
+
+    AccessRight current_access = check_access(metadata, client->username);
+    if (has_sufficient_access(current_access, requested_access)) {
+        strcpy(response, "You already have the requested access");
+        return ERR_INVALID_OPERATION;
+    }
+
+    AccessRequest* existing = find_access_request(metadata, client->username, NULL);
+    if (existing) {
+        existing->requested_access = requested_access;
+        existing->requested_time = time(NULL);
+        snprintf(response, BUFFER_SIZE, "Updated existing request for %s access",
+                 access_to_string(requested_access));
+    } else {
+    AccessRequest* new_request = (AccessRequest*)calloc(1, sizeof(AccessRequest));
+    snprintf(new_request->username, MAX_USERNAME, "%s", client->username);
+        new_request->requested_access = requested_access;
+        new_request->requested_time = time(NULL);
+        new_request->next = metadata->pending_requests;
+        metadata->pending_requests = new_request;
+        snprintf(response, BUFFER_SIZE, "Requested %s access", access_to_string(requested_access));
+    }
+
+    char details[256];
+    snprintf(details, sizeof(details), "File=%s Requested=%s", filename,
+             access_to_string(requested_access));
+    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                "REQUEST_ACCESS", details);
+
+    return ERR_SUCCESS;
+}
+
+ErrorCode handle_list_requests(NameServer* nm, Client* client, const char* filename, char* response) {
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* metadata = search_file_trie(nm->file_trie, filename);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    if (!metadata) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    if (!is_owner(metadata, client->username)) {
+        return ERR_PERMISSION_DENIED;
+    }
+
+    AccessRequest* current = metadata->pending_requests;
+    if (!current) {
+        strcpy(response, "No pending requests\n");
+        return ERR_SUCCESS;
+    }
+
+    size_t offset = 0;
+    offset += snprintf(response + offset, BUFFER_SIZE - offset,
+                       "Pending requests for %s:\n", filename);
+    offset += snprintf(response + offset, BUFFER_SIZE - offset,
+                       "%-16s %-8s %-20s\n", "USERNAME", "ACCESS", "REQUESTED_AT");
+    offset += snprintf(response + offset, BUFFER_SIZE - offset,
+                       "------------------------------------------------\n");
+
+    while (current && offset < BUFFER_SIZE - 1) {
+        char time_buf[32];
+        struct tm* tm_info = localtime(&current->requested_time);
+        if (tm_info) {
+            strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", tm_info);
+        } else {
+            strncpy(time_buf, "-", sizeof(time_buf));
+            time_buf[sizeof(time_buf) - 1] = '\0';
+        }
+        offset += snprintf(response + offset, BUFFER_SIZE - offset,
+                           "%-16s %-8s %-20s\n",
+                           current->username,
+                           access_to_string(current->requested_access),
+                           time_buf);
+        current = current->next;
+    }
+
+    response[offset] = '\0';
+    return ERR_SUCCESS;
+}
+
+ErrorCode handle_process_request(NameServer* nm, Client* client, const char* filename,
+                                const char* target_user, bool approve, char* response) {
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* metadata = search_file_trie(nm->file_trie, filename);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    if (!metadata) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    if (!is_owner(metadata, client->username)) {
+        return ERR_PERMISSION_DENIED;
+    }
+
+    AccessRequest* prev = NULL;
+    AccessRequest* request = find_access_request(metadata, target_user, &prev);
+    if (!request) {
+        strcpy(response, "No pending request from that user");
+        return ERR_INVALID_OPERATION;
+    }
+
+    AccessRight requested_access = request->requested_access;
+
+    if (approve) {
+        ErrorCode grant_err = add_access(nm, client, filename, target_user, requested_access);
+        if (grant_err != ERR_SUCCESS) {
+            return grant_err;
+        }
+        snprintf(response, BUFFER_SIZE, "Granted %s access to %s",
+                 access_to_string(requested_access), target_user);
+    } else {
+        snprintf(response, BUFFER_SIZE, "Denied access request from %s", target_user);
+    }
+
+    if (prev) {
+        prev->next = request->next;
+    } else {
+        metadata->pending_requests = request->next;
+    }
+    free(request);
+
+    char details[256];
+    snprintf(details, sizeof(details), "File=%s User=%s Action=%s", filename,
+             target_user, approve ? "APPROVE" : "DENY");
+    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                approve ? "APPROVE_REQUEST" : "DENY_REQUEST", details);
+
     return ERR_SUCCESS;
 }
 

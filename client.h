@@ -54,6 +54,9 @@ void cmd_undo_file(Client* client, const char* filename);
 void cmd_list_users(Client* client);
 void cmd_add_access(Client* client, const char* filename, const char* target_user, char access_type);
 void cmd_remove_access(Client* client, const char* filename, const char* target_user);
+void cmd_request_access(Client* client, const char* filename, char access_type);
+void cmd_list_requests(Client* client, const char* filename);
+void cmd_process_request(Client* client, const char* filename, const char* target_user, bool approve);
 
 // Direct Storage Server operations
 void cmd_read_file(Client* client, const char* filename);

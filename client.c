@@ -17,7 +17,10 @@ void print_help() {
     printf("  undo <file>                   - Undo last change\n");
     printf("  addaccess <R|W> <file> <user> - Grant access\n");
     printf("  remaccess <file> <user>       - Revoke access\n");
-    printf("  users                         - List all users\n");
+    printf("  requestaccess <R|W> <file>    - Request access from owner\n");
+    printf("  listrequests <file>           - Show pending requests (owner)\n");
+    printf("  processrequest <file> <user> <approve|deny> - Process a request\n");
+    printf("  list                          - List all users\n");
     printf("  help                          - Show this help\n");
     printf("  quit                          - Disconnect\n");
     printf("============================================================\n");
@@ -158,7 +161,46 @@ void interactive_mode(Client* client) {
                 cmd_remove_access(client, filename, target_user);
             }
         }
-        else if (strcmp(cmd, "users") == 0) {
+        else if (strcmp(cmd, "requestaccess") == 0 || strcmp(cmd, "reqaccess") == 0) {
+            char* access_type = strtok(NULL, " ");
+            char* filename = strtok(NULL, " ");
+            if (!access_type || !filename) {
+                printf("Usage: requestaccess <R|W> <filename>\n");
+            } else {
+                cmd_request_access(client, filename, access_type[0]);
+            }
+        }
+        else if (strcmp(cmd, "listrequests") == 0 || strcmp(cmd, "requests") == 0) {
+            char* filename = strtok(NULL, " ");
+            if (!filename) {
+                printf("Usage: listrequests <filename>\n");
+            } else {
+                cmd_list_requests(client, filename);
+            }
+        }
+        else if (strcmp(cmd, "processrequest") == 0) {
+            char* filename = strtok(NULL, " ");
+            char* target_user = strtok(NULL, " ");
+            char* action = strtok(NULL, " ");
+            if (!filename || !target_user || !action) {
+                printf("Usage: processrequest <filename> <username> <approve|deny>\n");
+            } else {
+                char action_lower[32];
+                strncpy(action_lower, action, sizeof(action_lower) - 1);
+                action_lower[sizeof(action_lower) - 1] = '\0';
+                for (char* p = action_lower; *p; ++p) {
+                    *p = tolower(*p);
+                }
+                if (strcmp(action_lower, "approve") == 0) {
+                    cmd_process_request(client, filename, target_user, true);
+                } else if (strcmp(action_lower, "deny") == 0) {
+                    cmd_process_request(client, filename, target_user, false);
+                } else {
+                    printf("Action must be approve or deny\n");
+                }
+            }
+        }
+        else if (strcmp(cmd, "list") == 0) {
             cmd_list_users(client);
         }
         else {
