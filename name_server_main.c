@@ -257,6 +257,38 @@ void* handle_connection(void* arg) {
                     }
                 }
             }
+            else if (strcmp(cmd, "CHECKPOINT") == 0) {
+                if (arg_count < 2) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: CHECKPOINT <filename> <tag>");
+                } else {
+                    error = handle_checkpoint(nm, client, args[0], args[1], response_msg);
+                }
+            }
+            else if (strcmp(cmd, "VIEWCHECKPOINT") == 0) {
+                if (arg_count < 2) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: VIEWCHECKPOINT <filename> <tag>");
+                } else {
+                    error = handle_view_checkpoint(nm, client, args[0], args[1], response_msg);
+                }
+            }
+            else if (strcmp(cmd, "REVERT") == 0) {
+                if (arg_count < 2) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: REVERT <filename> <tag>");
+                } else {
+                    error = handle_revert_checkpoint(nm, client, args[0], args[1], response_msg);
+                }
+            }
+            else if (strcmp(cmd, "LISTCHECKPOINTS") == 0) {
+                if (arg_count < 1) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: LISTCHECKPOINTS <filename>");
+                } else {
+                    error = handle_list_checkpoints(nm, client, args[0], response_msg);
+                }
+            }
             else if (strcmp(cmd, "REQACCESS") == 0) {
                 if (arg_count < 2) {
                     error = ERR_INVALID_OPERATION;

@@ -161,6 +161,62 @@ void* handle_nm_connection(void* arg) {
             }
             send_response(ss->nm_socket_fd, response);
         }
+        else if (strcmp(cmd, "CHECKPOINT") == 0 && arg_count >= 2) {
+            ErrorCode err = create_checkpoint(ss, args[0], args[1]);
+            if (err == ERR_SUCCESS) {
+                snprintf(response, sizeof(response), "SUCCESS:Checkpoint '%s' saved\n", args[1]);
+            } else {
+                snprintf(response, sizeof(response), "ERROR:%d:%s\n", err, error_to_string(err));
+            }
+            send_response(ss->nm_socket_fd, response);
+        }
+        else if (strcmp(cmd, "VIEWCHECKPOINT") == 0 && arg_count >= 2) {
+            char payload[BUFFER_SIZE];
+            ErrorCode err = view_checkpoint(ss, args[0], args[1], payload, sizeof(payload));
+            if (err == ERR_SUCCESS) {
+                strncpy(response, "SUCCESS:", sizeof(response) - 1);
+                response[sizeof(response) - 1] = '\0';
+                size_t current = strlen(response);
+                size_t remaining = sizeof(response) - current - 1;
+                size_t payload_len = strnlen(payload, sizeof(payload));
+                if (payload_len > remaining) {
+                    payload_len = remaining;
+                }
+                memcpy(response + current, payload, payload_len);
+                response[current + payload_len] = '\0';
+            } else {
+                snprintf(response, sizeof(response), "ERROR:%d:%s\n", err, error_to_string(err));
+            }
+            send_response(ss->nm_socket_fd, response);
+        }
+        else if (strcmp(cmd, "REVERT") == 0 && arg_count >= 2) {
+            ErrorCode err = revert_to_checkpoint(ss, args[0], args[1]);
+            if (err == ERR_SUCCESS) {
+                snprintf(response, sizeof(response), "SUCCESS:File reverted to '%s'\n", args[1]);
+            } else {
+                snprintf(response, sizeof(response), "ERROR:%d:%s\n", err, error_to_string(err));
+            }
+            send_response(ss->nm_socket_fd, response);
+        }
+        else if (strcmp(cmd, "LISTCHECKPOINTS") == 0 && arg_count >= 1) {
+            char listing[BUFFER_SIZE];
+            ErrorCode err = list_checkpoints(ss, args[0], listing, sizeof(listing));
+            if (err == ERR_SUCCESS) {
+                strncpy(response, "SUCCESS:", sizeof(response) - 1);
+                response[sizeof(response) - 1] = '\0';
+                size_t current = strlen(response);
+                size_t remaining = sizeof(response) - current - 1;
+                size_t listing_len = strnlen(listing, sizeof(listing));
+                if (listing_len > remaining) {
+                    listing_len = remaining;
+                }
+                memcpy(response + current, listing, listing_len);
+                response[current + listing_len] = '\0';
+            } else {
+                snprintf(response, sizeof(response), "ERROR:%d:%s\n", err, error_to_string(err));
+            }
+            send_response(ss->nm_socket_fd, response);
+        }
         else {
             strcpy(response, "ERROR:Unknown command\n");
             send_response(ss->nm_socket_fd, response);

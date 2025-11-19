@@ -57,6 +57,10 @@ void cmd_remove_access(Client* client, const char* filename, const char* target_
 void cmd_request_access(Client* client, const char* filename, char access_type);
 void cmd_list_requests(Client* client, const char* filename);
 void cmd_process_request(Client* client, const char* filename, const char* target_user, bool approve);
+void cmd_checkpoint(Client* client, const char* filename, const char* tag);
+void cmd_view_checkpoint(Client* client, const char* filename, const char* tag);
+void cmd_revert_checkpoint(Client* client, const char* filename, const char* tag);
+void cmd_list_checkpoints(Client* client, const char* filename);
 
 // Direct Storage Server operations
 void cmd_read_file(Client* client, const char* filename);

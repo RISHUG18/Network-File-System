@@ -20,6 +20,10 @@ void print_help() {
     printf("  requestaccess <R|W> <file>    - Request access from owner\n");
     printf("  listrequests <file>           - Show pending requests (owner)\n");
     printf("  processrequest <file> <user> <approve|deny> - Process a request\n");
+    printf("  checkpoint <file> <tag>       - Save a checkpoint\n");
+    printf("  viewcheckpoint <file> <tag>   - View checkpoint content\n");
+    printf("  revert <file> <tag>           - Revert file to checkpoint\n");
+    printf("  listcheckpoints <file>        - List checkpoints for file\n");
     printf("  list                          - List all users\n");
     printf("  help                          - Show this help\n");
     printf("  quit                          - Disconnect\n");
@@ -198,6 +202,41 @@ void interactive_mode(Client* client) {
                 } else {
                     printf("Action must be approve or deny\n");
                 }
+            }
+        }
+        else if (strcmp(cmd, "checkpoint") == 0) {
+            char* filename = strtok(NULL, " ");
+            char* tag = strtok(NULL, " ");
+            if (!filename || !tag) {
+                printf("Usage: checkpoint <filename> <tag>\n");
+            } else {
+                cmd_checkpoint(client, filename, tag);
+            }
+        }
+        else if (strcmp(cmd, "viewcheckpoint") == 0) {
+            char* filename = strtok(NULL, " ");
+            char* tag = strtok(NULL, " ");
+            if (!filename || !tag) {
+                printf("Usage: viewcheckpoint <filename> <tag>\n");
+            } else {
+                cmd_view_checkpoint(client, filename, tag);
+            }
+        }
+        else if (strcmp(cmd, "revert") == 0) {
+            char* filename = strtok(NULL, " ");
+            char* tag = strtok(NULL, " ");
+            if (!filename || !tag) {
+                printf("Usage: revert <filename> <tag>\n");
+            } else {
+                cmd_revert_checkpoint(client, filename, tag);
+            }
+        }
+        else if (strcmp(cmd, "listcheckpoints") == 0) {
+            char* filename = strtok(NULL, " ");
+            if (!filename) {
+                printf("Usage: listcheckpoints <filename>\n");
+            } else {
+                cmd_list_checkpoints(client, filename);
             }
         }
         else if (strcmp(cmd, "list") == 0) {

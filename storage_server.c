@@ -1,5 +1,9 @@
 #include "storage_server.h"
 
+#ifndef DT_REG
+#define DT_REG 8
+#endif
+
 // ==================== UTILITY FUNCTIONS ====================
 
 const char* error_to_string(ErrorCode error) {
@@ -730,6 +734,296 @@ ErrorCode pop_undo(StorageServer* ss, const char* filename, char* content) {
     return ERR_SUCCESS;
 }
 
+// ==================== CHECKPOINT MANAGEMENT ====================
+
+static bool ensure_directory_exists(const char* path) {
+    struct stat st;
+    if (stat(path, &st) == 0) {
+        return S_ISDIR(st.st_mode);
+    }
+    if (mkdir(path, 0700) == 0) {
+        return true;
+    }
+    return errno == EEXIST;
+}
+
+static bool sanitize_checkpoint_tag(const char* tag, char* sanitized, size_t size) {
+    if (!tag || !sanitized || size == 0) {
+        return false;
+    }
+    size_t len = strlen(tag);
+    if (len == 0 || len >= size) {
+        return false;
+    }
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)tag[i];
+        if (isalnum(c) || c == '_' || c == '-' || c == '.') {
+            sanitized[i] = (char)c;
+        } else {
+            return false;
+        }
+    }
+    sanitized[len] = '\0';
+    return true;
+}
+
+static bool build_checkpoint_dir(char* buffer, size_t size, const char* filename) {
+    if (!buffer || size == 0 || !filename) {
+        return false;
+    }
+    int written = snprintf(buffer, size, "%s/%s", CHECKPOINT_BASE_DIR, filename);
+    return written > 0 && (size_t)written < size;
+}
+
+static bool build_checkpoint_path(char* buffer, size_t size, const char* filename, const char* tag) {
+    char safe_tag[MAX_CHECKPOINT_TAG];
+    if (!sanitize_checkpoint_tag(tag, safe_tag, sizeof(safe_tag))) {
+        return false;
+    }
+    if (!buffer || size == 0 || !filename) {
+        return false;
+    }
+    int written = snprintf(buffer, size, "%s/%s/%s.chk", CHECKPOINT_BASE_DIR, filename, safe_tag);
+    return written > 0 && (size_t)written < size;
+}
+
+static bool ensure_checkpoint_directory(const char* filename) {
+    if (!ensure_directory_exists(STORAGE_DIR)) {
+        return false;
+    }
+    if (!ensure_directory_exists(CHECKPOINT_BASE_DIR)) {
+        return false;
+    }
+    char dir_path[MAX_PATH];
+    if (!build_checkpoint_dir(dir_path, sizeof(dir_path), filename)) {
+        return false;
+    }
+    return ensure_directory_exists(dir_path);
+}
+
+ErrorCode create_checkpoint(StorageServer* ss, const char* filename, const char* tag) {
+    FileEntry* file = find_file(ss, filename);
+    if (!file) {
+        return ERR_FILE_NOT_FOUND;
+    }
+    if (!ensure_checkpoint_directory(filename)) {
+        return ERR_SYSTEM_ERROR;
+    }
+
+    char checkpoint_path[MAX_PATH];
+    if (!build_checkpoint_path(checkpoint_path, sizeof(checkpoint_path), filename, tag)) {
+        return ERR_INVALID_OPERATION;
+    }
+
+    struct stat st;
+    if (stat(checkpoint_path, &st) == 0) {
+        return ERR_FILE_EXISTS;
+    }
+
+    char content[MAX_CONTENT_SIZE];
+    size_t size = 0;
+    ErrorCode read_err = read_file(ss, filename, content, &size);
+    if (read_err != ERR_SUCCESS) {
+        return read_err;
+    }
+
+    FILE* fp = fopen(checkpoint_path, "w");
+    if (!fp) {
+        return ERR_SYSTEM_ERROR;
+    }
+    fwrite(content, 1, size, fp);
+    fclose(fp);
+
+    char details[256];
+    snprintf(details, sizeof(details), "File=%s Tag=%s", filename, tag);
+    log_message(ss, "INFO", "CHECKPOINT_CREATE", details);
+
+    return ERR_SUCCESS;
+}
+
+ErrorCode view_checkpoint(StorageServer* ss, const char* filename, const char* tag,
+                         char* buffer, size_t buffer_size) {
+    if (!buffer || buffer_size == 0) {
+        return ERR_INVALID_OPERATION;
+    }
+    FileEntry* file = find_file(ss, filename);
+    if (!file) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    char checkpoint_path[MAX_PATH];
+    if (!build_checkpoint_path(checkpoint_path, sizeof(checkpoint_path), filename, tag)) {
+        return ERR_INVALID_OPERATION;
+    }
+
+    FILE* fp = fopen(checkpoint_path, "r");
+    if (!fp) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    size_t bytes_read = fread(buffer, 1, buffer_size - 1, fp);
+    buffer[bytes_read] = '\0';
+    bool truncated = !feof(fp);
+    fclose(fp);
+
+    if (truncated) {
+        const char* suffix = "\n...[truncated]\n";
+        size_t current_len = strlen(buffer);
+        if (current_len + strlen(suffix) < buffer_size) {
+            strncat(buffer, suffix, buffer_size - current_len - 1);
+        } else if (buffer_size > 1) {
+            buffer[buffer_size - 2] = '\n';
+            buffer[buffer_size - 1] = '\0';
+        }
+    }
+
+    return ERR_SUCCESS;
+}
+
+ErrorCode revert_to_checkpoint(StorageServer* ss, const char* filename, const char* tag) {
+    FileEntry* file = find_file(ss, filename);
+    if (!file) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    char checkpoint_path[MAX_PATH];
+    if (!build_checkpoint_path(checkpoint_path, sizeof(checkpoint_path), filename, tag)) {
+        return ERR_INVALID_OPERATION;
+    }
+
+    FILE* fp = fopen(checkpoint_path, "r");
+    if (!fp) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    char snapshot[MAX_CONTENT_SIZE];
+    size_t bytes_read = fread(snapshot, 1, MAX_CONTENT_SIZE - 1, fp);
+    snapshot[bytes_read] = '\0';
+    fclose(fp);
+
+    pthread_rwlock_wrlock(&file->file_lock);
+
+    char current_content[MAX_CONTENT_SIZE];
+    rebuild_file_content(file, current_content);
+    push_undo(ss, filename, current_content);
+
+    parse_sentences(file, snapshot);
+    file->last_modified = time(NULL);
+    file->last_accessed = file->last_modified;
+    save_file_to_disk(file);
+    pthread_rwlock_unlock(&file->file_lock);
+
+    char details[256];
+    snprintf(details, sizeof(details), "File=%s Tag=%s", filename, tag);
+    log_message(ss, "INFO", "CHECKPOINT_REVERT", details);
+
+    return ERR_SUCCESS;
+}
+
+ErrorCode list_checkpoints(StorageServer* ss, const char* filename, char* buffer, size_t buffer_size) {
+    if (!buffer || buffer_size == 0) {
+        return ERR_INVALID_OPERATION;
+    }
+
+    FileEntry* file = find_file(ss, filename);
+    if (!file) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    char dir_path[MAX_PATH];
+    if (!build_checkpoint_dir(dir_path, sizeof(dir_path), filename)) {
+        return ERR_SYSTEM_ERROR;
+    }
+
+    DIR* dir = opendir(dir_path);
+    if (!dir) {
+        snprintf(buffer, buffer_size, "No checkpoints found\n");
+        return ERR_SUCCESS;
+    }
+
+    size_t offset = 0;
+    offset += snprintf(buffer + offset, buffer_size - offset,
+                       "Checkpoints for %s:\n", filename);
+    offset += snprintf(buffer + offset, buffer_size - offset,
+                       "%-20s %-20s\n", "TAG", "CREATED_AT");
+    offset += snprintf(buffer + offset, buffer_size - offset,
+                       "----------------------------------------\n");
+
+    struct dirent* entry;
+    int count = 0;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        const char* dot = strrchr(entry->d_name, '.');
+        if (!dot || strcmp(dot, ".chk") != 0) {
+            continue;
+        }
+
+        char tag[MAX_CHECKPOINT_TAG];
+        size_t tag_len = (size_t)(dot - entry->d_name);
+        if (tag_len >= sizeof(tag)) {
+            tag_len = sizeof(tag) - 1;
+        }
+        memcpy(tag, entry->d_name, tag_len);
+        tag[tag_len] = '\0';
+
+    char file_path[MAX_PATH * 2];
+    snprintf(file_path, sizeof(file_path), "%s/%s", dir_path, entry->d_name);
+        struct stat st;
+        time_t created = 0;
+        if (stat(file_path, &st) == 0) {
+            created = st.st_mtime;
+        }
+
+        char time_buf[32] = "-";
+        if (created > 0) {
+            struct tm* tm_info = localtime(&created);
+            if (tm_info) {
+                strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", tm_info);
+            }
+        }
+
+        offset += snprintf(buffer + offset, buffer_size - offset,
+                           "%-20s %-20s\n", tag, time_buf);
+        if (offset >= buffer_size - 1) {
+            break;
+        }
+        count++;
+    }
+    closedir(dir);
+
+    if (count == 0) {
+        snprintf(buffer, buffer_size, "No checkpoints found\n");
+    }
+
+    return ERR_SUCCESS;
+}
+
+void remove_all_checkpoints(const char* filename) {
+    char dir_path[MAX_PATH];
+    if (!build_checkpoint_dir(dir_path, sizeof(dir_path), filename)) {
+        return;
+    }
+
+    DIR* dir = opendir(dir_path);
+    if (!dir) {
+        return;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+    char file_path[MAX_PATH * 2];
+    snprintf(file_path, sizeof(file_path), "%s/%s", dir_path, entry->d_name);
+        unlink(file_path);
+    }
+    closedir(dir);
+    rmdir(dir_path);
+}
+
 // ==================== FILE OPERATIONS ====================
 
 FileEntry* find_file(StorageServer* ss, const char* filename) {
@@ -812,6 +1106,7 @@ ErrorCode delete_file(StorageServer* ss, const char* filename) {
             
             // Delete file from disk
             unlink(file->filepath);
+            remove_all_checkpoints(filename);
             
             // Free all sentences in linked list
             free_all_sentences(file);

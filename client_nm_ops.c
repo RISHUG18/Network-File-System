@@ -312,3 +312,104 @@ void cmd_process_request(Client* client, const char* filename, const char* targe
         printf("✗ Invalid response\n");
     }
 }
+
+void cmd_checkpoint(Client* client, const char* filename, const char* tag) {
+    char command[512];
+    snprintf(command, sizeof(command), "CHECKPOINT %s %s", filename, tag);
+
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("✓ %s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
+void cmd_view_checkpoint(Client* client, const char* filename, const char* tag) {
+    char command[512];
+    snprintf(command, sizeof(command), "VIEWCHECKPOINT %s %s", filename, tag);
+
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("\n--- Checkpoint %s:%s ---\n%s\n", filename, tag, message);
+            printf("--- End Checkpoint ---\n");
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
+void cmd_revert_checkpoint(Client* client, const char* filename, const char* tag) {
+    char command[512];
+    snprintf(command, sizeof(command), "REVERT %s %s", filename, tag);
+
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("✓ %s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
+void cmd_list_checkpoints(Client* client, const char* filename) {
+    char command[512];
+    snprintf(command, sizeof(command), "LISTCHECKPOINTS %s", filename);
+
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("\n%s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}

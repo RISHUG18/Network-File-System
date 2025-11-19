@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <ctype.h>
 
 // Constants
 #define MAX_FILENAME 256
@@ -25,6 +26,8 @@
 #define LOG_FILE "ss_log.txt"
 #define UNDO_HISTORY_SIZE 10
 #define STORAGE_DIR "./storage"
+#define CHECKPOINT_BASE_DIR STORAGE_DIR "/checkpoints"
+#define MAX_CHECKPOINT_TAG 64
 
 // Error Codes (matching NM)
 typedef enum {
@@ -179,6 +182,14 @@ ErrorCode get_file_info(StorageServer* ss, const char* filename,
 bool save_file_to_disk(FileEntry* file);
 bool load_file_from_disk(StorageServer* ss, const char* filename);
 void load_all_files(StorageServer* ss);
+
+// Checkpoints
+ErrorCode create_checkpoint(StorageServer* ss, const char* filename, const char* tag);
+ErrorCode view_checkpoint(StorageServer* ss, const char* filename, const char* tag,
+                         char* buffer, size_t buffer_size);
+ErrorCode revert_to_checkpoint(StorageServer* ss, const char* filename, const char* tag);
+ErrorCode list_checkpoints(StorageServer* ss, const char* filename, char* buffer, size_t buffer_size);
+void remove_all_checkpoints(const char* filename);
 
 // Draft management
 void free_draft_sentences(DraftSentence* head);

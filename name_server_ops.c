@@ -1,4 +1,5 @@
 #include "name_server.h"
+#include <ctype.h>
 
 static void record_last_access(FileMetadata* metadata, const char* username) {
     if (!metadata) return;
@@ -705,6 +706,259 @@ ErrorCode handle_process_request(NameServer* nm, Client* client, const char* fil
                 approve ? "APPROVE_REQUEST" : "DENY_REQUEST", details);
 
     return ERR_SUCCESS;
+}
+
+// ==================== CHECKPOINT MANAGEMENT ====================
+
+static void trim_trailing_newlines(char* text) {
+    if (!text) return;
+    size_t len = strlen(text);
+    while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == '\r')) {
+        text[len - 1] = '\0';
+        len--;
+    }
+}
+
+static bool validate_checkpoint_tag(const char* tag) {
+    if (!tag) return false;
+    size_t len = strlen(tag);
+    if (len == 0 || len >= MAX_CHECKPOINT_TAG) {
+        return false;
+    }
+    for (size_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)tag[i];
+        if (!(isalnum(c) || c == '_' || c == '-' || c == '.')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static ErrorCode parse_checkpoint_response(const char* ss_response, char* message) {
+    if (!ss_response || !message) {
+        strcpy(message, "No response from storage server");
+        return ERR_SYSTEM_ERROR;
+    }
+
+    char buffer[BUFFER_SIZE];
+    strncpy(buffer, ss_response, sizeof(buffer) - 1);
+    buffer[sizeof(buffer) - 1] = '\0';
+
+    if (strncmp(buffer, "SUCCESS", 7) == 0) {
+        char* payload = buffer + 7;
+        while (*payload == ':' || *payload == '\n' || *payload == ' ') {
+            payload++;
+        }
+        if (*payload == '\0') {
+            strcpy(message, "Operation completed successfully");
+        } else {
+            trim_trailing_newlines(payload);
+            strncpy(message, payload, BUFFER_SIZE - 1);
+            message[BUFFER_SIZE - 1] = '\0';
+        }
+        return ERR_SUCCESS;
+    }
+
+    if (strncmp(buffer, "ERROR", 5) == 0) {
+        ErrorCode code = ERR_SYSTEM_ERROR;
+        char* first_colon = strchr(buffer, ':');
+        char* msg_start = NULL;
+        if (first_colon) {
+            if (*(first_colon + 1) >= '0' && *(first_colon + 1) <= '9') {
+                code = (ErrorCode)atoi(first_colon + 1);
+                char* second_colon = strchr(first_colon + 1, ':');
+                msg_start = second_colon ? second_colon + 1 : first_colon + 1;
+            } else {
+                msg_start = first_colon + 1;
+            }
+        } else {
+            msg_start = buffer + 5;
+        }
+        if (!msg_start || *msg_start == '\0') {
+            msg_start = "Storage server rejected the request";
+        } else {
+            trim_trailing_newlines(msg_start);
+        }
+        if (code < ERR_SUCCESS || code > ERR_SYSTEM_ERROR) {
+            code = ERR_SYSTEM_ERROR;
+        }
+        strncpy(message, msg_start, BUFFER_SIZE - 1);
+        message[BUFFER_SIZE - 1] = '\0';
+        return code;
+    }
+
+    strcpy(message, "Unexpected storage server response");
+    return ERR_SYSTEM_ERROR;
+}
+
+ErrorCode handle_checkpoint(NameServer* nm, Client* client, const char* filename,
+                            const char* tag, char* response) {
+    if (!validate_checkpoint_tag(tag)) {
+        strcpy(response, "Invalid checkpoint tag (use letters, numbers, '.', '-', '_')");
+        return ERR_INVALID_OPERATION;
+    }
+
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* metadata = search_file_trie(nm->file_trie, filename);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    if (!metadata) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    AccessRight access = check_access(metadata, client->username);
+    if (access != ACCESS_WRITE) {
+        return ERR_PERMISSION_DENIED;
+    }
+
+    StorageServer* ss = get_storage_server(nm, metadata->ss_id);
+    if (!ss || !ss->is_active) {
+        return ERR_SS_NOT_FOUND;
+    }
+
+    char command[BUFFER_SIZE];
+    snprintf(command, sizeof(command), "CHECKPOINT %s %s", filename, tag);
+
+    char ss_response[BUFFER_SIZE];
+    if (forward_to_ss(nm, ss->id, command, ss_response) < 0) {
+        return ERR_SS_DISCONNECTED;
+    }
+
+    ErrorCode result = parse_checkpoint_response(ss_response, response);
+    if (result == ERR_SUCCESS) {
+        char details[256];
+        snprintf(details, sizeof(details), "File=%s Tag=%s", filename, tag);
+        log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                    "CHECKPOINT_CREATE", details);
+    }
+    return result;
+}
+
+ErrorCode handle_view_checkpoint(NameServer* nm, Client* client, const char* filename,
+                                 const char* tag, char* response) {
+    if (!validate_checkpoint_tag(tag)) {
+        strcpy(response, "Invalid checkpoint tag");
+        return ERR_INVALID_OPERATION;
+    }
+
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* metadata = search_file_trie(nm->file_trie, filename);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    if (!metadata) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    AccessRight access = check_access(metadata, client->username);
+    if (access == ACCESS_NONE) {
+        return ERR_UNAUTHORIZED;
+    }
+
+    StorageServer* ss = get_storage_server(nm, metadata->ss_id);
+    if (!ss || !ss->is_active) {
+        return ERR_SS_NOT_FOUND;
+    }
+
+    char command[BUFFER_SIZE];
+    snprintf(command, sizeof(command), "VIEWCHECKPOINT %s %s", filename, tag);
+
+    char ss_response[BUFFER_SIZE];
+    if (forward_to_ss(nm, ss->id, command, ss_response) < 0) {
+        return ERR_SS_DISCONNECTED;
+    }
+
+    ErrorCode result = parse_checkpoint_response(ss_response, response);
+    if (result == ERR_SUCCESS) {
+        char details[256];
+        snprintf(details, sizeof(details), "File=%s Tag=%s", filename, tag);
+        log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                    "CHECKPOINT_VIEW", details);
+    }
+    return result;
+}
+
+ErrorCode handle_revert_checkpoint(NameServer* nm, Client* client, const char* filename,
+                                   const char* tag, char* response) {
+    if (!validate_checkpoint_tag(tag)) {
+        strcpy(response, "Invalid checkpoint tag");
+        return ERR_INVALID_OPERATION;
+    }
+
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* metadata = search_file_trie(nm->file_trie, filename);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    if (!metadata) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    AccessRight access = check_access(metadata, client->username);
+    if (access != ACCESS_WRITE) {
+        return ERR_PERMISSION_DENIED;
+    }
+
+    StorageServer* ss = get_storage_server(nm, metadata->ss_id);
+    if (!ss || !ss->is_active) {
+        return ERR_SS_NOT_FOUND;
+    }
+
+    char command[BUFFER_SIZE];
+    snprintf(command, sizeof(command), "REVERT %s %s", filename, tag);
+
+    char ss_response[BUFFER_SIZE];
+    if (forward_to_ss(nm, ss->id, command, ss_response) < 0) {
+        return ERR_SS_DISCONNECTED;
+    }
+
+    ErrorCode result = parse_checkpoint_response(ss_response, response);
+    if (result == ERR_SUCCESS) {
+        metadata->last_modified = time(NULL);
+        metadata->last_accessed = metadata->last_modified;
+        record_last_access(metadata, client->username);
+        char details[256];
+        snprintf(details, sizeof(details), "File=%s Tag=%s", filename, tag);
+        log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                    "CHECKPOINT_REVERT", details);
+    }
+    return result;
+}
+
+ErrorCode handle_list_checkpoints(NameServer* nm, Client* client, const char* filename,
+                                  char* response) {
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* metadata = search_file_trie(nm->file_trie, filename);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    if (!metadata) {
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    AccessRight access = check_access(metadata, client->username);
+    if (access == ACCESS_NONE) {
+        return ERR_UNAUTHORIZED;
+    }
+
+    StorageServer* ss = get_storage_server(nm, metadata->ss_id);
+    if (!ss || !ss->is_active) {
+        return ERR_SS_NOT_FOUND;
+    }
+
+    char command[BUFFER_SIZE];
+    snprintf(command, sizeof(command), "LISTCHECKPOINTS %s", filename);
+
+    char ss_response[BUFFER_SIZE];
+    if (forward_to_ss(nm, ss->id, command, ss_response) < 0) {
+        return ERR_SS_DISCONNECTED;
+    }
+
+    ErrorCode result = parse_checkpoint_response(ss_response, response);
+    if (result == ERR_SUCCESS) {
+        char details[256];
+        snprintf(details, sizeof(details), "File=%s", filename);
+        log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                    "CHECKPOINT_LIST", details);
+    }
+    return result;
 }
 
 // ==================== USER MANAGEMENT ====================

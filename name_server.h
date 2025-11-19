@@ -25,6 +25,7 @@
 #define CACHE_SIZE 100
 #define USER_REGISTRY_FILE "nm_users.dat"
 #define MAX_REGISTERED_USERS 500
+#define MAX_CHECKPOINT_TAG 64
 
 // Error Codes
 typedef enum {
@@ -226,6 +227,14 @@ ErrorCode handle_list_requests(NameServer* nm, Client* client, const char* filen
 ErrorCode handle_process_request(NameServer* nm, Client* client, const char* filename,
                                 const char* target_user, bool approve,
                                 char* response);
+ErrorCode handle_checkpoint(NameServer* nm, Client* client, const char* filename,
+                            const char* tag, char* response);
+ErrorCode handle_view_checkpoint(NameServer* nm, Client* client, const char* filename,
+                                 const char* tag, char* response);
+ErrorCode handle_revert_checkpoint(NameServer* nm, Client* client, const char* filename,
+                                   const char* tag, char* response);
+ErrorCode handle_list_checkpoints(NameServer* nm, Client* client, const char* filename,
+                                  char* response);
 
 // User management
 ErrorCode handle_list_users(NameServer* nm, char* response);

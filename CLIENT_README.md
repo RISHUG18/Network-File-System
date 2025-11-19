@@ -158,6 +158,12 @@ requestaccess R scripts.sh      # Ask for read access
 listrequests scripts.sh         # Owner lists pending requests
 processrequest scripts.sh bob approve  # Owner approves Bob
 
+# Checkpoints
+checkpoint script.sh stable     # Owner saves a checkpoint
+viewcheckpoint script.sh stable # View checkpoint content
+revert script.sh stable         # Roll back file to checkpoint
+listcheckpoints script.sh       # Show all saved checkpoints
+
 # Help
 help
 
