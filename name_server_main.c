@@ -148,6 +148,18 @@ void* handle_connection(void* arg) {
                     }
                 }
             }
+            else if (strcmp(cmd, "CREATEFOLDER") == 0) {
+                if (arg_count < 1) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: CREATEFOLDER <foldername>");
+                } else {
+                    error = handle_create_folder(nm, client, args[0]);
+                    if (error == ERR_SUCCESS) {
+                        snprintf(response_msg, sizeof(response_msg), 
+                                "Folder '%s' created successfully", args[0]);
+                    }
+                }
+            }
             else if (strcmp(cmd, "DELETE") == 0) {
                 if (arg_count < 1) {
                     error = ERR_INVALID_OPERATION;
@@ -158,6 +170,26 @@ void* handle_connection(void* arg) {
                         snprintf(response_msg, sizeof(response_msg), 
                                 "File '%s' deleted successfully", args[0]);
                     }
+                }
+            }
+            else if (strcmp(cmd, "MOVE") == 0) {
+                if (arg_count < 2) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: MOVE <source> <destination>");
+                } else {
+                    error = handle_move_file(nm, client, args[0], args[1]);
+                    if (error == ERR_SUCCESS) {
+                        snprintf(response_msg, sizeof(response_msg), 
+                                "Moved '%s' to '%s' successfully", args[0], args[1]);
+                    }
+                }
+            }
+            else if (strcmp(cmd, "VIEWFOLDER") == 0) {
+                if (arg_count < 1) {
+                    error = ERR_INVALID_OPERATION;
+                    strcpy(response_msg, "Usage: VIEWFOLDER <foldername>");
+                } else {
+                    error = handle_view_folder(nm, client, args[0], response_msg);
                 }
             }
             else if (strcmp(cmd, "READ") == 0) {

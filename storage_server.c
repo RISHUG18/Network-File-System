@@ -661,20 +661,39 @@ bool load_file_from_disk(StorageServer* ss, const char* filename) {
     return false;
 }
 
-void load_all_files(StorageServer* ss) {
-    DIR* dir = opendir(STORAGE_DIR);
-    if (!dir) {
-        return;
+void load_files_recursive(StorageServer* ss, const char* base_path, const char* relative_path) {
+    char full_path[MAX_PATH];
+    if (relative_path && strlen(relative_path) > 0) {
+        snprintf(full_path, sizeof(full_path), "%s/%s", base_path, relative_path);
+    } else {
+        strncpy(full_path, base_path, sizeof(full_path));
     }
-    
+
+    DIR* dir = opendir(full_path);
+    if (!dir) return;
+
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG) {  // Regular file
-            load_file_from_disk(ss, entry->d_name);
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        char entry_rel_path[MAX_PATH];
+        if (relative_path && strlen(relative_path) > 0) {
+            snprintf(entry_rel_path, sizeof(entry_rel_path), "%s/%s", relative_path, entry->d_name);
+        } else {
+            strncpy(entry_rel_path, entry->d_name, sizeof(entry_rel_path));
+        }
+
+        if (entry->d_type == DT_DIR) {
+            load_files_recursive(ss, base_path, entry_rel_path);
+        } else if (entry->d_type == DT_REG) {
+            load_file_from_disk(ss, entry_rel_path);
         }
     }
-    
     closedir(dir);
+}
+
+void load_all_files(StorageServer* ss) {
+    load_files_recursive(ss, STORAGE_DIR, "");
 }
 
 // ==================== UNDO STACK ====================
@@ -1081,6 +1100,23 @@ FileEntry* create_file(StorageServer* ss, const char* filename) {
     }
     
     // Create empty file on disk
+    // Ensure parent directory exists
+    char path_copy[MAX_PATH];
+    strncpy(path_copy, file->filepath, MAX_PATH);
+    char* last_slash = strrchr(path_copy, '/');
+    if (last_slash) {
+        *last_slash = '\0';
+        char* p = NULL;
+        for (p = path_copy + 1; *p; p++) {
+            if (*p == '/') {
+                *p = '\0';
+                mkdir(path_copy, 0700);
+                *p = '/';
+            }
+        }
+        mkdir(path_copy, 0700);
+    }
+
     FILE* fp = fopen(file->filepath, "w");
     if (fp) {
         fclose(fp);
@@ -1162,4 +1198,49 @@ ErrorCode read_file(StorageServer* ss, const char* filename, char* content, size
     return ERR_SUCCESS;
 }
 
-// Continued in next part...
+ErrorCode rename_file(StorageServer* ss, const char* old_filename, const char* new_filename) {
+    FileEntry* file = find_file(ss, old_filename);
+    if (!file) return ERR_FILE_NOT_FOUND;
+    
+    if (find_file(ss, new_filename)) return ERR_FILE_EXISTS;
+
+    char old_path[MAX_PATH];
+    char new_path[MAX_PATH];
+    snprintf(old_path, sizeof(old_path), "%s/%s", STORAGE_DIR, old_filename);
+    snprintf(new_path, sizeof(new_path), "%s/%s", STORAGE_DIR, new_filename);
+
+    // Ensure parent directory exists
+    char path_copy[MAX_PATH];
+    strncpy(path_copy, new_path, MAX_PATH);
+    char* last_slash = strrchr(path_copy, '/');
+    if (last_slash) {
+        *last_slash = '\0';
+        char* p = NULL;
+        for (p = path_copy + 1; *p; p++) {
+            if (*p == '/') {
+                *p = '\0';
+                mkdir(path_copy, 0700);
+                *p = '/';
+            }
+        }
+        mkdir(path_copy, 0700);
+    }
+
+    if (rename(old_path, new_path) != 0) {
+        return ERR_SYSTEM_ERROR;
+    }
+
+    // Update FileEntry
+    pthread_mutex_lock(&ss->files_lock);
+    strncpy(file->filename, new_filename, MAX_FILENAME - 1);
+    file->filename[MAX_FILENAME - 1] = '\0';
+    strncpy(file->filepath, new_path, MAX_PATH - 1);
+    file->filepath[MAX_PATH - 1] = '\0';
+    pthread_mutex_unlock(&ss->files_lock);
+    
+    char details[256];
+    snprintf(details, sizeof(details), "Old=%s New=%s", old_filename, new_filename);
+    log_message(ss, "INFO", "RENAME", details);
+
+    return ERR_SUCCESS;
+}

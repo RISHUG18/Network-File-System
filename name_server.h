@@ -90,6 +90,7 @@ typedef struct FileMetadata {
     size_t file_size;
     int word_count;
     int char_count;
+    bool is_directory;
     AccessEntry* acl;
     AccessRequest* pending_requests;
 } FileMetadata;
@@ -214,6 +215,11 @@ ErrorCode handle_info_file(NameServer* nm, Client* client, const char* filename,
 ErrorCode handle_stream_file(NameServer* nm, Client* client, const char* filename, char* response);
 ErrorCode handle_exec_file(NameServer* nm, Client* client, const char* filename, char* response);
 ErrorCode handle_undo_file(NameServer* nm, Client* client, const char* filename);
+
+// Folder operations
+ErrorCode handle_create_folder(NameServer* nm, Client* client, const char* foldername);
+ErrorCode handle_move_file(NameServer* nm, Client* client, const char* source, const char* destination);
+ErrorCode handle_view_folder(NameServer* nm, Client* client, const char* foldername, char* response);
 
 // Access control
 ErrorCode add_access(NameServer* nm, Client* client, const char* filename, 

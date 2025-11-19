@@ -143,6 +143,7 @@ ErrorCode write_sentence(StorageServer* ss, const char* filename, int sentence_n
                         int word_index, const char* new_content, int client_id);
 ErrorCode lock_sentence(StorageServer* ss, const char* filename, int sentence_num, int client_id);
 ErrorCode unlock_sentence(StorageServer* ss, const char* filename, int sentence_num, int client_id);
+ErrorCode rename_file(StorageServer* ss, const char* old_filename, const char* new_filename);
 
 // Sentence Node Operations (Linked List)
 SentenceNode* create_sentence_node(const char** word_array, int word_count, char delimiter);

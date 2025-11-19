@@ -56,6 +56,31 @@ void cmd_create_file(Client* client, const char* filename) {
     }
 }
 
+void cmd_create_folder(Client* client, const char* foldername) {
+    char command[512];
+    snprintf(command, sizeof(command), "CREATEFOLDER %s", foldername);
+    
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+    
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+    
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("✓ %s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
 void cmd_delete_file(Client* client, const char* filename) {
     char command[512];
     snprintf(command, sizeof(command), "DELETE %s", filename);
@@ -401,6 +426,56 @@ void cmd_list_checkpoints(Client* client, const char* filename) {
         return;
     }
 
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("\n%s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
+void cmd_move_file(Client* client, const char* source, const char* destination) {
+    char command[512];
+    snprintf(command, sizeof(command), "MOVE %s %s", source, destination);
+    
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+    
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+    
+    int error_code;
+    char message[BUFFER_SIZE];
+    if (parse_nm_response(response, &error_code, message)) {
+        if (error_code == 0) {
+            printf("✓ %s\n", message);
+        } else {
+            printf("✗ Error: %s\n", message);
+        }
+    } else {
+        printf("✗ Invalid response\n");
+    }
+}
+
+void cmd_view_folder(Client* client, const char* foldername) {
+    char command[512];
+    snprintf(command, sizeof(command), "VIEWFOLDER %s", foldername);
+    
+    char response[BUFFER_SIZE];
+    int bytes = send_nm_command(client, command, response, sizeof(response));
+    
+    if (bytes < 0) {
+        printf("✗ Failed to send command\n");
+        return;
+    }
+    
     int error_code;
     char message[BUFFER_SIZE];
     if (parse_nm_response(response, &error_code, message)) {

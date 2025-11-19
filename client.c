@@ -8,6 +8,9 @@ void print_help() {
     printf("Commands:\n");
     printf("  view [flags]                  - List files (-a for all, -l for detailed)\n");
     printf("  create <file>                 - Create a file\n");
+    printf("  createfolder <folder>         - Create a folder\n");
+    printf("  move <source> <dest>          - Move a file or folder\n");
+    printf("  viewfolder <folder>           - List contents of a folder\n");
     printf("  delete <file>                 - Delete a file\n");
     printf("  info <file>                   - Get file information\n");
     printf("  read <file>                   - Read file content (direct SS)\n");
@@ -86,6 +89,31 @@ void interactive_mode(Client* client) {
                 printf("Usage: create <filename>\n");
             } else {
                 cmd_create_file(client, filename);
+            }
+        }
+        else if (strcmp(cmd, "createfolder") == 0) {
+            char* foldername = strtok(NULL, " ");
+            if (!foldername) {
+                printf("Usage: createfolder <foldername>\n");
+            } else {
+                cmd_create_folder(client, foldername);
+            }
+        }
+        else if (strcmp(cmd, "move") == 0) {
+            char* source = strtok(NULL, " ");
+            char* destination = strtok(NULL, " ");
+            if (!source || !destination) {
+                printf("Usage: move <source> <destination>\n");
+            } else {
+                cmd_move_file(client, source, destination);
+            }
+        }
+        else if (strcmp(cmd, "viewfolder") == 0) {
+            char* foldername = strtok(NULL, " ");
+            if (!foldername) {
+                printf("Usage: viewfolder <foldername>\n");
+            } else {
+                cmd_view_folder(client, foldername);
             }
         }
         else if (strcmp(cmd, "delete") == 0) {

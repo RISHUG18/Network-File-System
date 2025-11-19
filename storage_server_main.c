@@ -217,6 +217,15 @@ void* handle_nm_connection(void* arg) {
             }
             send_response(ss->nm_socket_fd, response);
         }
+        else if (strcmp(cmd, "RENAME") == 0 && arg_count >= 2) {
+            ErrorCode err = rename_file(ss, args[0], args[1]);
+            if (err == ERR_SUCCESS) {
+                strcpy(response, "SUCCESS\n");
+            } else {
+                snprintf(response, sizeof(response), "ERROR:%s\n", error_to_string(err));
+            }
+            send_response(ss->nm_socket_fd, response);
+        }
         else {
             strcpy(response, "ERROR:Unknown command\n");
             send_response(ss->nm_socket_fd, response);

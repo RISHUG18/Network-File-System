@@ -1065,4 +1065,189 @@ void parse_command(const char* command, char* cmd, char* args[], int* arg_count)
     }
 }
 
-// To be continued with connection handler...
+// ==================== FOLDER OPERATIONS ====================
+
+ErrorCode handle_create_folder(NameServer* nm, Client* client, const char* foldername) {
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* existing = search_file_trie(nm->file_trie, foldername);
+    if (existing) {
+        pthread_mutex_unlock(&nm->trie_lock);
+        return ERR_FILE_EXISTS;
+    }
+
+    FileMetadata* metadata = (FileMetadata*)calloc(1, sizeof(FileMetadata));
+    strncpy(metadata->filename, foldername, MAX_FILENAME - 1);
+    strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
+    metadata->is_directory = true;
+    metadata->created_time = time(NULL);
+    metadata->last_modified = time(NULL);
+    metadata->last_accessed = time(NULL);
+    record_last_access(metadata, client->username);
+    
+    insert_file_trie(nm->file_trie, foldername, metadata);
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    char details[256];
+    snprintf(details, sizeof(details), "Folder=%s", foldername);
+    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+               "CREATE_FOLDER", details);
+
+    return ERR_SUCCESS;
+}
+
+ErrorCode handle_move_file(NameServer* nm, Client* client, const char* source, const char* destination) {
+    pthread_mutex_lock(&nm->trie_lock);
+    FileMetadata* src_meta = search_file_trie(nm->file_trie, source);
+    if (!src_meta) {
+        pthread_mutex_unlock(&nm->trie_lock);
+        return ERR_FILE_NOT_FOUND;
+    }
+
+    if (!is_owner(src_meta, client->username)) {
+        pthread_mutex_unlock(&nm->trie_lock);
+        return ERR_PERMISSION_DENIED;
+    }
+
+    // Check if destination is a folder
+    FileMetadata* dest_meta = search_file_trie(nm->file_trie, destination);
+    char new_path[MAX_FILENAME];
+    
+    if (dest_meta && dest_meta->is_directory) {
+        // Move into folder: destination/source_filename
+        const char* filename = strrchr(source, '/');
+        filename = filename ? filename + 1 : source;
+        snprintf(new_path, sizeof(new_path), "%s/%s", destination, filename);
+    } else {
+        // Rename/Move to new path
+        strncpy(new_path, destination, MAX_FILENAME - 1);
+        new_path[MAX_FILENAME - 1] = '\0';
+    }
+
+    if (search_file_trie(nm->file_trie, new_path)) {
+        pthread_mutex_unlock(&nm->trie_lock);
+        return ERR_FILE_EXISTS;
+    }
+
+    // If it's a file, we need to move it on SS
+    if (!src_meta->is_directory) {
+        StorageServer* ss = get_storage_server(nm, src_meta->ss_id);
+        if (!ss || !ss->is_active) {
+            pthread_mutex_unlock(&nm->trie_lock);
+            return ERR_SS_NOT_FOUND;
+        }
+
+        char command[BUFFER_SIZE];
+        snprintf(command, sizeof(command), "RENAME %s %s", source, new_path);
+        char response[BUFFER_SIZE];
+        
+        // Unlock trie while communicating with SS
+        pthread_mutex_unlock(&nm->trie_lock);
+        
+        if (forward_to_ss(nm, ss->id, command, response) < 0) {
+            return ERR_SS_DISCONNECTED;
+        }
+        
+        if (strncmp(response, "SUCCESS", 7) != 0) {
+            return ERR_SYSTEM_ERROR;
+        }
+        
+        // Re-lock trie to update metadata
+        pthread_mutex_lock(&nm->trie_lock);
+        // Re-search to be safe
+        src_meta = search_file_trie(nm->file_trie, source);
+        if (!src_meta) {
+            pthread_mutex_unlock(&nm->trie_lock);
+            return ERR_FILE_NOT_FOUND;
+        }
+    }
+
+    // Update Trie
+    FileMetadata* new_meta = (FileMetadata*)malloc(sizeof(FileMetadata));
+    memcpy(new_meta, src_meta, sizeof(FileMetadata));
+    strncpy(new_meta->filename, new_path, MAX_FILENAME - 1);
+    new_meta->last_modified = time(NULL);
+    
+    new_meta->acl = src_meta->acl;
+    src_meta->acl = NULL; // Prevent free in delete_file_trie
+    
+    insert_file_trie(nm->file_trie, new_path, new_meta);
+    delete_file_trie(nm->file_trie, source);
+    
+    pthread_mutex_unlock(&nm->trie_lock);
+
+    char details[256];
+    snprintf(details, sizeof(details), "Src=%s Dest=%s", source, new_path);
+    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+               "MOVE", details);
+
+    return ERR_SUCCESS;
+}
+
+ErrorCode handle_view_folder(NameServer* nm, Client* client, const char* foldername, char* response) {
+    pthread_mutex_lock(&nm->trie_lock);
+    
+    // Find the folder node
+    TrieNode* current = nm->file_trie;
+    for (int i = 0; foldername[i] != '\0'; i++) {
+        unsigned char index = (unsigned char)foldername[i];
+        if (!current->children[index]) {
+            pthread_mutex_unlock(&nm->trie_lock);
+            return ERR_FILE_NOT_FOUND;
+        }
+        current = current->children[index];
+    }
+    
+    if (current->is_end_of_word && current->file_metadata && !((FileMetadata*)current->file_metadata)->is_directory) {
+         pthread_mutex_unlock(&nm->trie_lock);
+         return ERR_INVALID_OPERATION; // Not a folder
+    }
+
+    char buffer[BUFFER_SIZE * 4] = {0};
+    int offset = 0;
+    
+    void collect_folder_contents(TrieNode* node, char* prefix, int depth, const char* base_folder) {
+        if (!node) return;
+        
+        if (node->is_end_of_word && node->file_metadata) {
+            FileMetadata* meta = (FileMetadata*)node->file_metadata;
+            size_t base_len = strlen(base_folder);
+            if (strncmp(meta->filename, base_folder, base_len) == 0) {
+                const char* relative = meta->filename + base_len;
+                if (*relative == '/') relative++;
+                
+                if (strchr(relative, '/') == NULL && strlen(relative) > 0) {
+                    // Direct child
+                    offset += snprintf(buffer + offset, sizeof(buffer) - offset,
+                                     "%s%s\n", meta->filename, meta->is_directory ? "/" : "");
+                }
+            }
+        }
+        
+        for (int i = 0; i < 256; i++) {
+            if (node->children[i]) {
+                prefix[depth] = (char)i;
+                prefix[depth + 1] = '\0';
+                collect_folder_contents(node->children[i], prefix, depth + 1, base_folder);
+            }
+        }
+    }
+    
+    char prefix[MAX_FILENAME] = {0};
+    collect_folder_contents(current, prefix, 0, foldername);
+    
+    pthread_mutex_unlock(&nm->trie_lock);
+    
+    if (offset == 0) {
+        strcpy(response, "Folder is empty\n");
+    } else {
+        size_t copy_len = strlen(buffer);
+        if (copy_len >= BUFFER_SIZE) copy_len = BUFFER_SIZE - 1;
+        memcpy(response, buffer, copy_len);
+        response[copy_len] = '\0';
+    }
+    
+    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+               "VIEW_FOLDER", foldername);
+    
+    return ERR_SUCCESS;
+}

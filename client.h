@@ -47,6 +47,9 @@ int send_ss_command(int ss_socket, const char* command, char* response, size_t r
 // Name Server operations (through NM)
 void cmd_view_files(Client* client, const char* flags);
 void cmd_create_file(Client* client, const char* filename);
+void cmd_create_folder(Client* client, const char* foldername);
+void cmd_move_file(Client* client, const char* source, const char* destination);
+void cmd_view_folder(Client* client, const char* foldername);
 void cmd_delete_file(Client* client, const char* filename);
 void cmd_file_info(Client* client, const char* filename);
 void cmd_exec_file(Client* client, const char* filename);
