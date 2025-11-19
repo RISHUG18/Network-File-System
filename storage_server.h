@@ -39,6 +39,14 @@ typedef enum {
 } ErrorCode;
 
 // Sentence Node - Doubly Linked List
+typedef struct DraftSentence {
+    char** words;                    // Staged words before commit
+    int word_count;
+    int word_capacity;
+    char delimiter;
+    struct DraftSentence* next;
+} DraftSentence;
+
 typedef struct SentenceNode {
     char** words;                    // Dynamic array of words
     int word_count;                  // Number of words in sentence
@@ -49,13 +57,14 @@ typedef struct SentenceNode {
     int lock_holder_id;              // Client ID holding the lock
     struct SentenceNode* next;       // Next sentence in list
     struct SentenceNode* prev;       // Previous sentence in list
+    DraftSentence* draft_head;       // Pending staged edits (linked list per delimiter)
+    bool draft_dirty;                // True if staged edits differ from live data
 } SentenceNode;
 
 // File structure with Linked List
 typedef struct FileEntry {
     char filename[MAX_FILENAME];
     char filepath[MAX_PATH];
-    char swap_filepath[MAX_PATH];
     SentenceNode* head;              // First sentence (linked list head)
     SentenceNode* tail;              // Last sentence (linked list tail)
     int sentence_count;              // Total number of sentences
@@ -66,7 +75,6 @@ typedef struct FileEntry {
     pthread_mutex_t structure_lock;  // Protects linked list structure modifications
     time_t last_modified;
     time_t last_accessed;
-    bool swap_pending;
 } FileEntry;
 
 // Undo history entry
@@ -169,11 +177,12 @@ ErrorCode get_file_info(StorageServer* ss, const char* filename,
 
 // Persistence
 bool save_file_to_disk(FileEntry* file);
-bool save_file_to_swap(FileEntry* file);
-bool commit_swap_file(FileEntry* file);
-void discard_swap_file(FileEntry* file);
 bool load_file_from_disk(StorageServer* ss, const char* filename);
 void load_all_files(StorageServer* ss);
+
+// Draft management
+void free_draft_sentences(DraftSentence* head);
+ErrorCode commit_sentence_drafts(StorageServer* ss, const char* filename, int sentence_num);
 
 // Networking
 void* handle_nm_connection(void* arg);

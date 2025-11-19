@@ -258,28 +258,26 @@ void* handle_client_connection(void* arg) {
         else if (strcmp(cmd, "ETIRW") == 0) {
             // Finalize changes and unlock
             if (in_write_mode) {
-                ErrorCode err = unlock_sentence(ss, write_filename, write_sentence_num, client_id);
-                
-                if (err == ERR_SUCCESS) {
-                    FileEntry* file = find_file(ss, write_filename);
-                    if (file) {
-                        pthread_rwlock_wrlock(&file->file_lock);
-                        if (!commit_swap_file(file)) {
-                            log_message(ss, "WARN", "WRITE", "Failed to commit swap file, saving directly");
-                            save_file_to_disk(file);
-                            discard_swap_file(file);
-                        }
-                        pthread_rwlock_unlock(&file->file_lock);
-                    }
-                    send_response(client_fd, "SUCCESS\n");
-                } else {
+                ErrorCode commit_err = commit_sentence_drafts(ss, write_filename, write_sentence_num);
+                if (commit_err != ERR_SUCCESS) {
                     char error_msg[256];
-                    snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(err));
+                    snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(commit_err));
                     send_response(client_fd, error_msg);
+                    unlock_sentence(ss, write_filename, write_sentence_num, client_id);
+                    in_write_mode = false;
+                    write_sentence_num = -1;
+                } else {
+                    ErrorCode err = unlock_sentence(ss, write_filename, write_sentence_num, client_id);
+                    if (err == ERR_SUCCESS) {
+                        send_response(client_fd, "SUCCESS\n");
+                        in_write_mode = false;
+                        write_sentence_num = -1;
+                    } else {
+                        char error_msg[256];
+                        snprintf(error_msg, sizeof(error_msg), "ERROR:%s\n", error_to_string(err));
+                        send_response(client_fd, error_msg);
+                    }
                 }
-                
-                in_write_mode = false;
-                write_sentence_num = -1;
             } else {
                 send_response(client_fd, "ERROR:Not in write mode\n");
             }
