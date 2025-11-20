@@ -1,0 +1,12 @@
+[2025-11-20 11:08:01] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-20 11:08:02] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=0
+[2025-11-20 11:08:04] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-20 11:08:10] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE_FOLDER Details=Folder=new
+[2025-11-20 11:08:13] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=new/wow SS_ID=0
+[2025-11-20 11:08:37] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE_FOLDER Details=Folder=new/temp
+[2025-11-20 11:08:44] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=new/temp/another SS_ID=0
+[2025-11-20 11:09:01] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE_FOLDER Details=Folder=fuck
+[2025-11-20 11:09:05] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=fuck/temp SS_ID=0
+[2025-11-20 11:09:45] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=MOVE Details=Src=fuck/temp Dest=new/temp/temp
+[2025-11-20 11:10:45] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=MOVE Details=Src=new/temp/temp Dest=new/fuck
+[2025-11-20 11:10:59] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0

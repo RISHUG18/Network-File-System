@@ -1,0 +1,8 @@
+[2025-11-20 11:08:02] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-20 11:08:02] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-20 11:08:02] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-20 11:08:13] [INFO] Op=CREATE Details=File=new/wow
+[2025-11-20 11:08:44] [INFO] Op=CREATE Details=File=new/temp/another
+[2025-11-20 11:09:05] [INFO] Op=CREATE Details=File=fuck/temp
+[2025-11-20 11:09:45] [INFO] Op=RENAME Details=Old=fuck/temp New=new/temp/temp
+[2025-11-20 11:10:45] [INFO] Op=RENAME Details=Old=new/temp/temp New=new/fuck
