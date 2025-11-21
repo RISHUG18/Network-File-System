@@ -666,7 +666,8 @@ void load_files_recursive(StorageServer* ss, const char* base_path, const char* 
     if (relative_path && strlen(relative_path) > 0) {
         snprintf(full_path, sizeof(full_path), "%s/%s", base_path, relative_path);
     } else {
-        strncpy(full_path, base_path, sizeof(full_path));
+        strncpy(full_path, base_path, sizeof(full_path) - 1);
+        full_path[sizeof(full_path) - 1] = '\0';
     }
 
     DIR* dir = opendir(full_path);

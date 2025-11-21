@@ -1079,7 +1079,9 @@ ErrorCode handle_create_folder(NameServer* nm, Client* client, const char* folde
 
     FileMetadata* metadata = (FileMetadata*)calloc(1, sizeof(FileMetadata));
     strncpy(metadata->filename, foldername, MAX_FILENAME - 1);
+    metadata->filename[MAX_FILENAME - 1] = '\0';
     strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
+    metadata->owner[MAX_USERNAME - 1] = '\0';
     metadata->is_directory = true;
     metadata->created_time = time(NULL);
     metadata->last_modified = time(NULL);
@@ -1167,6 +1169,7 @@ ErrorCode handle_move_file(NameServer* nm, Client* client, const char* source, c
     FileMetadata* new_meta = (FileMetadata*)malloc(sizeof(FileMetadata));
     memcpy(new_meta, src_meta, sizeof(FileMetadata));
     strncpy(new_meta->filename, new_path, MAX_FILENAME - 1);
+    new_meta->filename[MAX_FILENAME - 1] = '\0';
     new_meta->last_modified = time(NULL);
     
     new_meta->acl = src_meta->acl;
@@ -1177,7 +1180,7 @@ ErrorCode handle_move_file(NameServer* nm, Client* client, const char* source, c
     
     pthread_mutex_unlock(&nm->trie_lock);
 
-    char details[256];
+    char details[512];
     snprintf(details, sizeof(details), "Src=%s Dest=%s", source, new_path);
     log_message(nm, "INFO", client->ip, client->nm_port, client->username,
                "MOVE", details);
