@@ -1,7 +1,10 @@
-[2025-11-21 16:29:38] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
-[2025-11-21 16:29:40] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=0
-[2025-11-21 16:29:42] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=1 IP=127.0.0.1 NM_Port=8080 Client_Port=9003 Files=0
-[2025-11-21 16:29:44] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
-[2025-11-21 16:29:45] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=new SS_ID=0
-[2025-11-21 16:29:52] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=test SS_ID=1
-[2025-11-21 16:29:55] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-21 16:46:11] [INFO] IP=N/A Port=0 User=N/A Op=INIT Details=Name Server initialized
+[2025-11-21 16:46:13] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=0 IP=127.0.0.1 NM_Port=8080 Client_Port=9002 Files=0
+[2025-11-21 16:46:15] [INFO] IP=127.0.0.1 Port=8080 User=N/A Op=SS_REGISTER Details=SS_ID=1 IP=127.0.0.1 NM_Port=8080 Client_Port=9003 Files=0
+[2025-11-21 16:46:17] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_REGISTER Details=Client_ID=0 IP=127.0.0.1 NM_Port=7001 SS_Port=7002
+[2025-11-21 16:46:20] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=file SS_ID=0
+[2025-11-21 16:46:24] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=new SS_ID=1
+[2025-11-21 16:46:27] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CREATE Details=File=test SS_ID=0
+[2025-11-21 16:46:30] [INFO] IP=127.0.0.1 Port=7001 User=alice Op=CLIENT_DISCONNECT Details=Client_ID=0
+[2025-11-21 16:46:32] [WARN] IP=127.0.0.1 Port=8080 User=N/A Op=SS_DISCONNECT Details=SS_ID=0 IP=127.0.0.1 Client_Port=9002 File_Count=0
+[2025-11-21 16:46:37] [WARN] IP=127.0.0.1 Port=8080 User=N/A Op=SS_DISCONNECT Details=SS_ID=1 IP=127.0.0.1 Client_Port=9003 File_Count=0

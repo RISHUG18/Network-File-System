@@ -600,12 +600,25 @@ StorageServer* find_ss_for_file(NameServer* nm, const char* filename) {
     return get_storage_server(nm, metadata->ss_id);
 }
 
-void deregister_storage_server(NameServer* nm, int ss_id) {
+void deregister_storage_server_safe(NameServer* nm, int ss_id, int socket_fd) {
     pthread_mutex_lock(&nm->ss_lock);
     
     StorageServer* ss = nm->storage_servers[ss_id];
     if (ss) {
+        // If a specific fd is provided, only deregister if it matches
+        if (socket_fd != -1 && ss->socket_fd != socket_fd) {
+             pthread_mutex_unlock(&nm->ss_lock);
+             return; // Stale disconnection event
+        }
+
         ss->is_active = false;
+        
+        // Close socket and invalidate it
+        if (ss->socket_fd >= 0) {
+            close(ss->socket_fd);
+            ss->socket_fd = -1;
+        }
+
         char details[256];
         snprintf(details, sizeof(details), "SS_ID=%d IP=%s Client_Port=%d File_Count=%d", 
                  ss_id, ss->ip, ss->client_port, ss->file_count);
@@ -615,6 +628,10 @@ void deregister_storage_server(NameServer* nm, int ss_id) {
     }
     
     pthread_mutex_unlock(&nm->ss_lock);
+}
+
+void deregister_storage_server(NameServer* nm, int ss_id) {
+    deregister_storage_server_safe(nm, ss_id, -1);
 }
 
 // ==================== CLIENT MANAGEMENT ====================

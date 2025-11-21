@@ -199,6 +199,7 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
 StorageServer* get_storage_server(NameServer* nm, int ss_id);
 StorageServer* find_ss_for_file(NameServer* nm, const char* filename);
 void deregister_storage_server(NameServer* nm, int ss_id);
+void deregister_storage_server_safe(NameServer* nm, int ss_id, int socket_fd);
 
 // Client management
 int register_client(NameServer* nm, const char* username, const char* ip, 

@@ -81,10 +81,24 @@ void* handle_connection(void* arg) {
         
         // Keep connection open for SS
         // The SS will keep sending updates and we'll keep the socket open
-        // For now, we'll just handle the registration and close
         
         for (int i = 0; i < arg_count; i++) {
             free(args[i]);
+        }
+        
+        // Monitor connection for disconnection
+        while (nm->is_running) {
+            char hb_buffer[BUFFER_SIZE];
+            int hb_bytes = recv(socket_fd, hb_buffer, BUFFER_SIZE - 1, 0);
+            
+            if (hb_bytes <= 0) {
+                // Connection closed or error
+                deregister_storage_server_safe(nm, ss_id, socket_fd);
+                break;
+            }
+            
+            // If we receive data, it might be a heartbeat or update
+            // For now, just ignore
         }
         
         return NULL;

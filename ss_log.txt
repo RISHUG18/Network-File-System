@@ -1,8 +1,9 @@
-[2025-11-21 16:29:40] [INFO] Op=INIT Details=Storage Server initialized
-[2025-11-21 16:29:40] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
-[2025-11-21 16:29:40] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
-[2025-11-21 16:29:42] [INFO] Op=INIT Details=Storage Server initialized
-[2025-11-21 16:29:42] [INFO] Op=REGISTER_NM Details=SS registered with ID 1
-[2025-11-21 16:29:42] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
-[2025-11-21 16:29:45] [INFO] Op=CREATE Details=File=new
-[2025-11-21 16:29:52] [INFO] Op=CREATE Details=File=test
+[2025-11-21 16:46:13] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-21 16:46:13] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-21 16:46:13] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-21 16:46:15] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-21 16:46:15] [INFO] Op=REGISTER_NM Details=SS registered with ID 1
+[2025-11-21 16:46:15] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-21 16:46:20] [INFO] Op=CREATE Details=File=file
+[2025-11-21 16:46:24] [INFO] Op=CREATE Details=File=new
+[2025-11-21 16:46:27] [INFO] Op=CREATE Details=File=test
