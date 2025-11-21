@@ -24,7 +24,6 @@
 #define BUFFER_SIZE 4096
 #define MAX_CONTENT_SIZE (1024 * 1024)  // 1MB max file size
 #define LOG_FILE "ss_log.txt"
-#define UNDO_HISTORY_SIZE 10
 #define STORAGE_DIR "./storage"
 #define CHECKPOINT_BASE_DIR STORAGE_DIR "/checkpoints"
 #define MAX_CHECKPOINT_TAG 64
@@ -80,20 +79,6 @@ typedef struct FileEntry {
     time_t last_accessed;
 } FileEntry;
 
-// Undo history entry
-typedef struct UndoEntry {
-    char filename[MAX_FILENAME];
-    char* content;  // Full file content snapshot
-    time_t timestamp;
-} UndoEntry;
-
-// Undo stack
-typedef struct UndoStack {
-    UndoEntry entries[UNDO_HISTORY_SIZE];
-    int top;
-    pthread_mutex_t lock;
-} UndoStack;
-
 // Storage Server
 typedef struct StorageServer {
     int ss_id;
@@ -107,9 +92,6 @@ typedef struct StorageServer {
     FileEntry* files[MAX_FILES];
     int file_count;
     pthread_mutex_t files_lock;
-    
-    // Undo management
-    UndoStack undo_stack;
     
     // Logging
     FILE* log_file;
@@ -168,10 +150,11 @@ bool insert_word_in_sentence(SentenceNode* sentence, int index, const char* word
 bool delete_word_in_sentence(SentenceNode* sentence, int index);
 bool replace_word_in_sentence(SentenceNode* sentence, int index, const char* word);
 
-// Undo operations
-void push_undo(StorageServer* ss, const char* filename, const char* content);
-ErrorCode pop_undo(StorageServer* ss, const char* filename, char* content);
 ErrorCode handle_undo(StorageServer* ss, const char* filename);
+
+// Undo file helpers
+bool build_undo_path(const FileEntry* file, char* buffer, size_t size);
+ErrorCode copy_file_contents(const char* src_path, const char* dst_path);
 
 // Streaming
 ErrorCode stream_file(StorageServer* ss, int client_fd, const char* filename);

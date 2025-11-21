@@ -94,14 +94,10 @@ typedef struct Sentence {
 } Sentence;
 ```
 
-### UndoStack
-```c
-typedef struct UndoStack {
-    UndoEntry entries[100];        // Circular buffer
-    int top;
-    pthread_mutex_t lock;
-} UndoStack;
-```
+### Undo Snapshot
+- Single-level undo implemented via `<filename>.undo` temp file
+- On every `ETIRW`, the storage server copies the current on-disk file to this snapshot before applying drafts
+- `UNDO` swaps the snapshot and main file contents, so users can always revert the most recent committed state
 
 ## Concurrency Model
 

@@ -65,6 +65,50 @@ void ensure_storage_dir() {
     }
 }
 
+bool build_undo_path(const FileEntry* file, char* buffer, size_t size) {
+    if (!file || !buffer || size == 0) {
+        return false;
+    }
+    int written = snprintf(buffer, size, "%s.undo", file->filepath);
+    return written > 0 && (size_t)written < size;
+}
+
+ErrorCode copy_file_contents(const char* src_path, const char* dst_path) {
+    if (!src_path || !dst_path) {
+        return ERR_SYSTEM_ERROR;
+    }
+
+    FILE* src = fopen(src_path, "r");
+    if (!src) {
+        return ERR_SYSTEM_ERROR;
+    }
+
+    FILE* dst = fopen(dst_path, "w");
+    if (!dst) {
+        fclose(src);
+        return ERR_SYSTEM_ERROR;
+    }
+
+    char buffer[BUFFER_SIZE];
+    size_t bytes_read;
+    ErrorCode result = ERR_SUCCESS;
+
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+        if (fwrite(buffer, 1, bytes_read, dst) != bytes_read) {
+            result = ERR_SYSTEM_ERROR;
+            break;
+        }
+    }
+
+    if (result == ERR_SUCCESS && ferror(src)) {
+        result = ERR_SYSTEM_ERROR;
+    }
+
+    fclose(dst);
+    fclose(src);
+    return result;
+}
+
 // ==================== UTILITY FUNCTIONS ====================
 
 bool is_sentence_delimiter(char c) {
@@ -697,63 +741,6 @@ void load_all_files(StorageServer* ss) {
     load_files_recursive(ss, STORAGE_DIR, "");
 }
 
-// ==================== UNDO STACK ====================
-
-void push_undo(StorageServer* ss, const char* filename, const char* content) {
-    pthread_mutex_lock(&ss->undo_stack.lock);
-    
-    // Move to next position (circular buffer)
-    ss->undo_stack.top = (ss->undo_stack.top + 1) % UNDO_HISTORY_SIZE;
-    
-    UndoEntry* entry = &ss->undo_stack.entries[ss->undo_stack.top];
-    
-    // Free old content if exists
-    if (entry->content) {
-        free(entry->content);
-    }
-    
-    // Store new undo entry
-    strncpy(entry->filename, filename, MAX_FILENAME - 1);
-    entry->filename[MAX_FILENAME - 1] = '\0';
-    entry->content = strdup(content);
-    entry->timestamp = time(NULL);
-    
-    pthread_mutex_unlock(&ss->undo_stack.lock);
-}
-
-ErrorCode pop_undo(StorageServer* ss, const char* filename, char* content) {
-    pthread_mutex_lock(&ss->undo_stack.lock);
-    
-    // Search for most recent undo for this file
-    int idx = ss->undo_stack.top;
-    bool found = false;
-    
-    for (int i = 0; i < UNDO_HISTORY_SIZE; i++) {
-        if (ss->undo_stack.entries[idx].content &&
-            strcmp(ss->undo_stack.entries[idx].filename, filename) == 0) {
-            found = true;
-            break;
-        }
-        idx = (idx - 1 + UNDO_HISTORY_SIZE) % UNDO_HISTORY_SIZE;
-    }
-    
-    if (!found) {
-        pthread_mutex_unlock(&ss->undo_stack.lock);
-        return ERR_SYSTEM_ERROR;
-    }
-    
-    // Copy content
-    strcpy(content, ss->undo_stack.entries[idx].content);
-    
-    // Clear this undo entry
-    free(ss->undo_stack.entries[idx].content);
-    ss->undo_stack.entries[idx].content = NULL;
-    
-    pthread_mutex_unlock(&ss->undo_stack.lock);
-    
-    return ERR_SUCCESS;
-}
-
 // ==================== CHECKPOINT MANAGEMENT ====================
 
 static bool ensure_directory_exists(const char* path) {
@@ -923,9 +910,12 @@ ErrorCode revert_to_checkpoint(StorageServer* ss, const char* filename, const ch
 
     pthread_rwlock_wrlock(&file->file_lock);
 
-    char current_content[MAX_CONTENT_SIZE];
-    rebuild_file_content(file, current_content);
-    push_undo(ss, filename, current_content);
+    char undo_path[MAX_PATH];
+    if (!build_undo_path(file, undo_path, sizeof(undo_path)) ||
+        copy_file_contents(file->filepath, undo_path) != ERR_SUCCESS) {
+        pthread_rwlock_unlock(&file->file_lock);
+        return ERR_SYSTEM_ERROR;
+    }
 
     parse_sentences(file, snapshot);
     file->last_modified = time(NULL);
@@ -1179,6 +1169,10 @@ ErrorCode delete_file(StorageServer* ss, const char* filename) {
             
             // Delete file from disk
             unlink(file->filepath);
+            char undo_path[MAX_PATH];
+            if (build_undo_path(file, undo_path, sizeof(undo_path))) {
+                unlink(undo_path);
+            }
             remove_all_checkpoints(filename);
             
             // Free all sentences in linked list
@@ -1246,6 +1240,9 @@ ErrorCode rename_file(StorageServer* ss, const char* old_filename, const char* n
     snprintf(old_path, sizeof(old_path), "%s/%s", STORAGE_DIR, old_filename);
     snprintf(new_path, sizeof(new_path), "%s/%s", STORAGE_DIR, new_filename);
 
+    char old_undo_path[MAX_PATH];
+    bool has_old_undo = build_undo_path(file, old_undo_path, sizeof(old_undo_path));
+
     // Ensure parent directory exists
     char path_copy[MAX_PATH];
     strncpy(path_copy, new_path, MAX_PATH);
@@ -1274,6 +1271,13 @@ ErrorCode rename_file(StorageServer* ss, const char* old_filename, const char* n
     strncpy(file->filepath, new_path, MAX_PATH - 1);
     file->filepath[MAX_PATH - 1] = '\0';
     pthread_mutex_unlock(&ss->files_lock);
+
+    if (has_old_undo) {
+        char new_undo_path[MAX_PATH];
+        if (build_undo_path(file, new_undo_path, sizeof(new_undo_path))) {
+            rename(old_undo_path, new_undo_path);
+        }
+    }
     
     char details[256];
     snprintf(details, sizeof(details), "Old=%s New=%s", old_filename, new_filename);

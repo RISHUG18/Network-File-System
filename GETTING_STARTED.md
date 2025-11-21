@@ -128,7 +128,7 @@ Template:
 - file_create(), file_read(), file_write(), file_delete()
 - parse_sentences()
 - lock_sentence(), unlock_sentence()
-- push_undo(), pop_undo()
+- handle_undo() and undo snapshot helpers
 ```
 
 ### Phase 3: Implement Full Client
