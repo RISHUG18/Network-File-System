@@ -27,6 +27,7 @@
 #define STORAGE_DIR "./storage"
 #define CHECKPOINT_BASE_DIR STORAGE_DIR "/checkpoints"
 #define MAX_CHECKPOINT_TAG 64
+#define SENTENCE_UNDO_HISTORY 50
 
 // Error Codes (matching NM)
 typedef enum {
@@ -41,6 +42,8 @@ typedef enum {
 } ErrorCode;
 
 // Sentence Node - Doubly Linked List
+struct SentenceNode;
+
 typedef struct DraftSentence {
     char** words;                    // Staged words before commit
     int word_count;
@@ -48,6 +51,15 @@ typedef struct DraftSentence {
     char delimiter;
     struct DraftSentence* next;
 } DraftSentence;
+
+typedef struct SentenceUndoEntry {
+    struct SentenceNode* sentence;   // Target sentence for this snapshot
+    char** words_snapshot;           // Deep copy of words before commit
+    int word_count;
+    char delimiter;
+    int appended_sentences;          // Sentences created during the commit
+    struct SentenceUndoEntry* next;  // Stack linkage
+} SentenceUndoEntry;
 
 typedef struct SentenceNode {
     char** words;                    // Dynamic array of words
@@ -77,6 +89,8 @@ typedef struct FileEntry {
     pthread_mutex_t structure_lock;  // Protects linked list structure modifications
     time_t last_modified;
     time_t last_accessed;
+    SentenceUndoEntry* undo_head;    // Stack of sentence-level undo entries
+    int undo_depth;
 } FileEntry;
 
 // Storage Server
@@ -175,6 +189,7 @@ ErrorCode view_checkpoint(StorageServer* ss, const char* filename, const char* t
 ErrorCode revert_to_checkpoint(StorageServer* ss, const char* filename, const char* tag);
 ErrorCode list_checkpoints(StorageServer* ss, const char* filename, char* buffer, size_t buffer_size);
 void remove_all_checkpoints(const char* filename);
+void clear_file_undo_history(FileEntry* file);
 
 // Draft management
 void free_draft_sentences(DraftSentence* head);

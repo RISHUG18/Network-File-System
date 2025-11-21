@@ -388,6 +388,184 @@ static bool apply_drafts_to_file(FileEntry* file, SentenceNode* sentence) {
     return true;
 }
 
+// ==================== UNDO HELPERS ====================
+
+static void destroy_sentence_undo_entry(SentenceUndoEntry* entry) {
+    if (!entry) {
+        return;
+    }
+    if (entry->words_snapshot) {
+        for (int i = 0; i < entry->word_count; i++) {
+            free(entry->words_snapshot[i]);
+        }
+        free(entry->words_snapshot);
+    }
+    free(entry);
+}
+
+static SentenceUndoEntry* create_sentence_undo_entry(SentenceNode* sentence) {
+    if (!sentence) {
+        return NULL;
+    }
+
+    SentenceUndoEntry* entry = (SentenceUndoEntry*)calloc(1, sizeof(SentenceUndoEntry));
+    if (!entry) {
+        return NULL;
+    }
+
+    entry->sentence = sentence;
+    entry->word_count = sentence->word_count;
+    entry->delimiter = sentence->delimiter;
+
+    if (entry->word_count > 0) {
+        entry->words_snapshot = (char**)calloc(entry->word_count, sizeof(char*));
+        if (!entry->words_snapshot) {
+            destroy_sentence_undo_entry(entry);
+            return NULL;
+        }
+
+        for (int i = 0; i < entry->word_count; i++) {
+            if (sentence->words && sentence->words[i]) {
+                entry->words_snapshot[i] = strdup(sentence->words[i]);
+                if (!entry->words_snapshot[i]) {
+                    destroy_sentence_undo_entry(entry);
+                    return NULL;
+                }
+            }
+        }
+    }
+
+    return entry;
+}
+
+static void trim_sentence_undo_history(FileEntry* file) {
+    if (!file || file->undo_depth <= SENTENCE_UNDO_HISTORY) {
+        return;
+    }
+
+    SentenceUndoEntry* current = file->undo_head;
+    int index = 1;
+    while (current && index < SENTENCE_UNDO_HISTORY) {
+        current = current->next;
+        index++;
+    }
+
+    if (current && current->next) {
+        SentenceUndoEntry* to_free = current->next;
+        current->next = NULL;
+        while (to_free) {
+            SentenceUndoEntry* next = to_free->next;
+            destroy_sentence_undo_entry(to_free);
+            file->undo_depth--;
+            to_free = next;
+        }
+    }
+}
+
+static void push_sentence_undo_entry(FileEntry* file, SentenceUndoEntry* entry) {
+    if (!file || !entry) {
+        return;
+    }
+    entry->next = file->undo_head;
+    file->undo_head = entry;
+    file->undo_depth++;
+    trim_sentence_undo_history(file);
+}
+
+static SentenceUndoEntry* pop_sentence_undo_entry(FileEntry* file) {
+    if (!file || !file->undo_head) {
+        return NULL;
+    }
+    SentenceUndoEntry* entry = file->undo_head;
+    file->undo_head = entry->next;
+    entry->next = NULL;
+    if (file->undo_depth > 0) {
+        file->undo_depth--;
+    }
+    return entry;
+}
+
+static bool sentence_belongs_to_file(FileEntry* file, SentenceNode* sentence) {
+    if (!file || !sentence) {
+        return false;
+    }
+    pthread_mutex_lock(&file->structure_lock);
+    SentenceNode* current = file->head;
+    while (current) {
+        if (current == sentence) {
+            pthread_mutex_unlock(&file->structure_lock);
+            return true;
+        }
+        current = current->next;
+    }
+    pthread_mutex_unlock(&file->structure_lock);
+    return false;
+}
+
+static bool ensure_sentence_capacity(SentenceNode* sentence, int needed) {
+    if (!sentence) {
+        return false;
+    }
+    if (needed <= sentence->word_capacity) {
+        return true;
+    }
+
+    int new_capacity = sentence->word_capacity > 0 ? sentence->word_capacity : 4;
+    while (new_capacity < needed) {
+        new_capacity *= 2;
+    }
+
+    char** new_words = (char**)realloc(sentence->words, new_capacity * sizeof(char*));
+    if (!new_words) {
+        return false;
+    }
+    sentence->words = new_words;
+    sentence->word_capacity = new_capacity;
+    return true;
+}
+
+static bool apply_sentence_snapshot(SentenceNode* sentence, SentenceUndoEntry* entry) {
+    if (!sentence || !entry) {
+        return false;
+    }
+
+    for (int i = 0; i < sentence->word_count; i++) {
+        free(sentence->words[i]);
+        sentence->words[i] = NULL;
+    }
+
+    int needed = entry->word_count > 0 ? entry->word_count : 1;
+    if (!ensure_sentence_capacity(sentence, needed)) {
+        sentence->word_count = 0;
+        return false;
+    }
+
+    for (int i = 0; i < entry->word_count; i++) {
+        const char* word = (entry->words_snapshot && entry->words_snapshot[i]) ? entry->words_snapshot[i] : "";
+        sentence->words[i] = strdup(word);
+        if (!sentence->words[i]) {
+            for (int j = 0; j < i; j++) {
+                free(sentence->words[j]);
+                sentence->words[j] = NULL;
+            }
+            sentence->word_count = 0;
+            return false;
+        }
+    }
+
+    sentence->word_count = entry->word_count;
+    sentence->delimiter = entry->delimiter;
+    sentence->draft_dirty = false;
+    if (sentence->draft_head) {
+        free_draft_sentences(sentence->draft_head);
+        sentence->draft_head = NULL;
+    }
+    for (int i = entry->word_count; i < sentence->word_capacity; i++) {
+        sentence->words[i] = NULL;
+    }
+    return true;
+}
+
 // ==================== SENTENCE LOCKING AND WRITE OPERATIONS ====================
 
 ErrorCode lock_sentence(StorageServer* ss, const char* filename, int sentence_num, int client_id) {
@@ -575,18 +753,18 @@ ErrorCode commit_sentence_drafts(StorageServer* ss, const char* filename, int se
         return ERR_SUCCESS;
     }
 
-    char undo_path[MAX_PATH];
-    if (!build_undo_path(file, undo_path, sizeof(undo_path))) {
+    SentenceUndoEntry* undo_entry = create_sentence_undo_entry(sentence);
+    if (!undo_entry) {
         pthread_mutex_unlock(&sentence->lock);
         pthread_rwlock_unlock(&file->file_lock);
         return ERR_SYSTEM_ERROR;
     }
 
-    ErrorCode snapshot_err = copy_file_contents(file->filepath, undo_path);
-    if (snapshot_err != ERR_SUCCESS) {
-        pthread_mutex_unlock(&sentence->lock);
-        pthread_rwlock_unlock(&file->file_lock);
-        return snapshot_err;
+    int appended_count = 0;
+    DraftSentence* cursor_count = sentence->draft_head ? sentence->draft_head->next : NULL;
+    while (cursor_count) {
+        appended_count++;
+        cursor_count = cursor_count->next;
     }
 
     // Lock structure before applying drafts (which may insert new sentences)
@@ -597,6 +775,7 @@ ErrorCode commit_sentence_drafts(StorageServer* ss, const char* filename, int se
     pthread_mutex_unlock(&file->structure_lock);
     
     if (!applied) {
+        destroy_sentence_undo_entry(undo_entry);
         pthread_mutex_unlock(&sentence->lock);
         pthread_rwlock_unlock(&file->file_lock);
         return ERR_SYSTEM_ERROR;
@@ -605,6 +784,9 @@ ErrorCode commit_sentence_drafts(StorageServer* ss, const char* filename, int se
     // Unlock sentence before calling functions that acquire structure_lock
     // to avoid lock ordering violations
     pthread_mutex_unlock(&sentence->lock);
+
+    undo_entry->appended_sentences = appended_count;
+    push_sentence_undo_entry(file, undo_entry);
 
     refresh_file_stats(file);
     file->last_modified = time(NULL);
@@ -740,91 +922,47 @@ ErrorCode handle_undo(StorageServer* ss, const char* filename) {
         return ERR_FILE_NOT_FOUND;
     }
 
-    char undo_path[MAX_PATH];
-    if (!build_undo_path(file, undo_path, sizeof(undo_path))) {
-        return ERR_SYSTEM_ERROR;
-    }
-
     pthread_rwlock_wrlock(&file->file_lock);
 
-    FILE* undo_fp = fopen(undo_path, "r");
-    if (!undo_fp) {
+    SentenceUndoEntry* entry = pop_sentence_undo_entry(file);
+    if (!entry) {
         pthread_rwlock_unlock(&file->file_lock);
         return ERR_INVALID_OPERATION;
     }
 
-    char undo_content[MAX_CONTENT_SIZE];
-    size_t undo_bytes = 0;
-    bool undo_error = false;
-    while (!feof(undo_fp) && undo_bytes < MAX_CONTENT_SIZE - 1) {
-        size_t chunk = fread(undo_content + undo_bytes, 1,
-                             MAX_CONTENT_SIZE - 1 - undo_bytes, undo_fp);
-        if (chunk == 0) {
+    if (!sentence_belongs_to_file(file, entry->sentence)) {
+        destroy_sentence_undo_entry(entry);
+        pthread_rwlock_unlock(&file->file_lock);
+        return ERR_SYSTEM_ERROR;
+    }
+
+    SentenceNode* sentence = entry->sentence;
+    pthread_mutex_lock(&sentence->lock);
+    bool applied = apply_sentence_snapshot(sentence, entry);
+    pthread_mutex_unlock(&sentence->lock);
+
+    if (!applied) {
+        destroy_sentence_undo_entry(entry);
+        pthread_rwlock_unlock(&file->file_lock);
+        return ERR_SYSTEM_ERROR;
+    }
+
+    for (int i = 0; i < entry->appended_sentences; i++) {
+        SentenceNode* extra = sentence->next;
+        if (!extra) {
             break;
         }
-        undo_bytes += chunk;
-    }
-    if (ferror(undo_fp) || (!feof(undo_fp) && undo_bytes == MAX_CONTENT_SIZE - 1)) {
-        undo_error = true;
-    }
-    fclose(undo_fp);
-
-    if (undo_error) {
-        pthread_rwlock_unlock(&file->file_lock);
-        return ERR_SYSTEM_ERROR;
+        delete_sentence_node(file, extra);
     }
 
-    undo_content[undo_bytes] = '\0';
-
-    FILE* current_fp = fopen(file->filepath, "r");
-    if (!current_fp) {
-        pthread_rwlock_unlock(&file->file_lock);
-        return ERR_SYSTEM_ERROR;
-    }
-
-    char current_content[MAX_CONTENT_SIZE];
-    size_t current_bytes = 0;
-    bool current_error = false;
-    while (!feof(current_fp) && current_bytes < MAX_CONTENT_SIZE - 1) {
-        size_t chunk = fread(current_content + current_bytes, 1,
-                             MAX_CONTENT_SIZE - 1 - current_bytes, current_fp);
-        if (chunk == 0) {
-            break;
-        }
-        current_bytes += chunk;
-    }
-    if (ferror(current_fp) || (!feof(current_fp) && current_bytes == MAX_CONTENT_SIZE - 1)) {
-        current_error = true;
-    }
-    fclose(current_fp);
-
-    if (current_error) {
-        pthread_rwlock_unlock(&file->file_lock);
-        return ERR_SYSTEM_ERROR;
-    }
-
-    current_content[current_bytes] = '\0';
-
-    FILE* undo_write = fopen(undo_path, "w");
-    if (!undo_write) {
-        pthread_rwlock_unlock(&file->file_lock);
-        return ERR_SYSTEM_ERROR;
-    }
-    if (current_bytes > 0) {
-        if (fwrite(current_content, 1, current_bytes, undo_write) != current_bytes) {
-            fclose(undo_write);
-            pthread_rwlock_unlock(&file->file_lock);
-            return ERR_SYSTEM_ERROR;
-        }
-    }
-    fclose(undo_write);
-
-    parse_sentences(file, undo_content);
+    refresh_file_stats(file);
     file->last_modified = time(NULL);
     file->last_accessed = file->last_modified;
     save_file_to_disk(file);
 
     pthread_rwlock_unlock(&file->file_lock);
+
+    destroy_sentence_undo_entry(entry);
 
     char details[256];
     snprintf(details, sizeof(details), "File=%s", filename);

@@ -373,6 +373,28 @@ void free_all_sentences(FileEntry* file) {
     pthread_mutex_unlock(&file->structure_lock);
 }
 
+void clear_file_undo_history(FileEntry* file) {
+    if (!file) {
+        return;
+    }
+
+    SentenceUndoEntry* current = file->undo_head;
+    while (current) {
+        SentenceUndoEntry* next = current->next;
+        if (current->words_snapshot) {
+            for (int i = 0; i < current->word_count; i++) {
+                free(current->words_snapshot[i]);
+            }
+            free(current->words_snapshot);
+        }
+        free(current);
+        current = next;
+    }
+
+    file->undo_head = NULL;
+    file->undo_depth = 0;
+}
+
 // ==================== WORD OPERATIONS WITHIN SENTENCE ====================
 
 bool insert_word_in_sentence(SentenceNode* sentence, int index, const char* word) {
@@ -449,6 +471,7 @@ void parse_sentences(FileEntry* file, const char* content) {
     if (!file) return;
     
     // Clear existing sentences
+    clear_file_undo_history(file);
     free_all_sentences(file);
     
     if (!content || strlen(content) == 0) {
@@ -680,6 +703,15 @@ bool load_file_from_disk(StorageServer* ss, const char* filename) {
     file->filepath[MAX_PATH - 1] = '\0';
     
     pthread_rwlock_init(&file->file_lock, NULL);
+    pthread_mutex_init(&file->structure_lock, NULL);
+    file->head = NULL;
+    file->tail = NULL;
+    file->sentence_count = 0;
+    file->total_size = 0;
+    file->total_words = 0;
+    file->total_chars = 0;
+    file->undo_head = NULL;
+    file->undo_depth = 0;
     
     struct stat st;
     if (stat(filepath, &st) == 0) {
@@ -1080,6 +1112,8 @@ FileEntry* create_file(StorageServer* ss, const char* filename) {
     file->total_chars = 0;
     file->last_modified = time(NULL);
     file->last_accessed = time(NULL);
+    file->undo_head = NULL;
+    file->undo_depth = 0;
     
     pthread_rwlock_init(&file->file_lock, NULL);
     pthread_mutex_init(&file->structure_lock, NULL);
@@ -1177,6 +1211,7 @@ ErrorCode delete_file(StorageServer* ss, const char* filename) {
             
             // Free all sentences in linked list
             free_all_sentences(file);
+            clear_file_undo_history(file);
             
             pthread_rwlock_destroy(&file->file_lock);
             pthread_mutex_destroy(&file->structure_lock);
