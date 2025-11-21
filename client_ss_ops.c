@@ -258,13 +258,18 @@ void cmd_stream_file(Client* client, const char* filename) {
         }
     }
 
-    if (saw_data) {
+    if (!done) {
+        if (saw_data) {
+            if (!first_token) printf("\n");
+            printf("✗ Stream interrupted: Storage Server closed connection unexpectedly\n");
+        } else {
+            printf("✗ No data received\n");
+        }
+    } else {
         if (!first_token) {
             printf("\n");
         }
         printf("--- End of Stream ---\n");
-    } else {
-        printf("✗ No data received\n");
     }
 
     close(ss_socket);
