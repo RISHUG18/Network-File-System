@@ -4,6 +4,47 @@ Based on the test output, here are the **3 failing tests** and exact commands to
 
 ---
 
+## Round-Robin File Creation (New Sanity Test)
+**Goal**: Ensure the Name Server alternates between active storage servers when creating new files.
+
+### Setup
+
+```bash
+# Terminal 1: Start Name Server on default port
+./name_server 8080
+
+# Terminal 2: Start Storage Server 1
+./storage_server 127.0.0.1 8080 9002
+
+# Terminal 3: Start Storage Server 2
+./storage_server 127.0.0.1 8080 9003
+```
+
+### Manual Test Steps
+
+```bash
+# Terminal 4: Run client and register
+./client
+register tester 12001 12002
+
+# Create alternating files
+create rr_file_1.txt
+create rr_file_2.txt
+create rr_file_3.txt
+create rr_file_4.txt
+```
+
+### Expected Behavior
+- `nm_log.txt` should show CREATE entries with `SS_ID` alternating between the two storage servers (e.g., 0, 1, 0, 1...).
+- If one server is down, the Name Server skips it and uses the next active one while still advancing the round-robin pointer.
+
+### Debug Tips
+1. Tail the log while creating files: `tail -f nm_log.txt | grep CREATE`
+2. Temporarily stop `storage_server` #2 and create another file—the Name Server should fall back to the remaining active server without hanging.
+3. Restart server #2 and create more files; the rotation should resume from where it left off.
+
+---
+
 ## Test Failure 1: Owner reads file (Test 4)
 **Issue**: Timeout or no response when reading file
 

@@ -273,6 +273,7 @@ NameServer* init_name_server(int port) {
     nm->nm_port = port;
     nm->ss_count = 0;
     nm->client_count = 0;
+    nm->next_ss_index = 0;
     nm->is_running = true;
     
     // Initialize data structures

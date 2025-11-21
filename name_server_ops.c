@@ -121,79 +121,81 @@ ErrorCode handle_create_file(NameServer* nm, Client* client, const char* filenam
         return ERR_FILE_EXISTS;
     }
     
-    // Find a storage server to create the file (try all active servers)
+    // Find a storage server to create the file (try all active servers in round-robin order)
     pthread_mutex_lock(&nm->ss_lock);
-    StorageServer* ss = NULL;
-    int start_index = 0; // Could be random or round-robin state
-    
-    // Try to find a working server
-    for (int i = 0; i < nm->ss_count; i++) {
-        int idx = (start_index + i) % nm->ss_count;
-        if (nm->storage_servers[idx] && nm->storage_servers[idx]->is_active) {
-            ss = nm->storage_servers[idx];
-            
-            // Try to create file on this server
-            char command[BUFFER_SIZE];
-            snprintf(command, sizeof(command), "CREATE %s", filename);
-            
-            char response[BUFFER_SIZE];
-            
-            // Release lock temporarily while communicating
-            pthread_mutex_unlock(&nm->ss_lock);
-            
-            if (forward_to_ss(nm, ss->id, command, response) >= 0) {
-                // Communication successful
-                if (strncmp(response, "SUCCESS", 7) == 0) {
-                    // File created successfully!
-                    
-                    // Add to trie
-                    pthread_mutex_lock(&nm->trie_lock);
-                    FileMetadata* metadata = (FileMetadata*)malloc(sizeof(FileMetadata));
-                    strncpy(metadata->filename, filename, MAX_FILENAME - 1);
-                    metadata->filename[MAX_FILENAME - 1] = '\0';
-                    strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
-                    metadata->owner[MAX_USERNAME - 1] = '\0';
-                    metadata->ss_id = ss->id;
-                    metadata->created_time = time(NULL);
-                    metadata->last_modified = time(NULL);
-                    metadata->last_accessed = time(NULL);
-                    record_last_access(metadata, client->username);
-                    strncpy(metadata->last_accessed_by, client->username, MAX_USERNAME - 1);
-                    metadata->last_accessed_by[MAX_USERNAME - 1] = '\0';
-                    metadata->file_size = 0;
-                    metadata->word_count = 0;
-                    metadata->char_count = 0;
-                    metadata->acl = NULL;
-                    metadata->pending_requests = NULL;
-                    
-                    insert_file_trie(nm->file_trie, filename, metadata);
-                    put_in_cache(nm->cache, filename, metadata);
-                    pthread_mutex_unlock(&nm->trie_lock);
-                    
-                    char details[256];
-                    snprintf(details, sizeof(details), "File=%s SS_ID=%d", filename, ss->id);
-                    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
-                               "CREATE", details);
-                    
-                    return ERR_SUCCESS;
-                } else {
-                    // Server responded but failed (e.g. file exists?)
-                    // If file exists on SS but not in NM, that's an inconsistency.
-                    // But we should probably stop trying if SS says "ERROR:File already exists"
-                    if (strstr(response, "exists")) {
-                        return ERR_FILE_EXISTS;
-                    }
-                    // Other error? Try next server?
-                }
-            }
-            
-            // If we are here, either forward_to_ss failed (disconnected) or creation failed
-            // Re-acquire lock to continue loop
-            pthread_mutex_lock(&nm->ss_lock);
-        }
+    if (nm->ss_count == 0) {
+        pthread_mutex_unlock(&nm->ss_lock);
+        return ERR_SS_NOT_FOUND;
     }
+    int total_servers = nm->ss_count;
+    int start_index = nm->next_ss_index % total_servers;
     pthread_mutex_unlock(&nm->ss_lock);
-    
+
+    for (int attempt = 0; attempt < total_servers; attempt++) {
+        int idx = (start_index + attempt) % total_servers;
+
+        pthread_mutex_lock(&nm->ss_lock);
+        StorageServer* ss = (idx < nm->ss_count) ? nm->storage_servers[idx] : NULL;
+        if (!ss || !ss->is_active) {
+            pthread_mutex_unlock(&nm->ss_lock);
+            continue;
+        }
+        int rr_mod = nm->ss_count > 0 ? nm->ss_count : 1;
+        nm->next_ss_index = (idx + 1) % rr_mod;
+        pthread_mutex_unlock(&nm->ss_lock);
+
+        // Try to create file on this server
+        char command[BUFFER_SIZE];
+        snprintf(command, sizeof(command), "CREATE %s", filename);
+
+        char response[BUFFER_SIZE];
+
+        if (forward_to_ss(nm, ss->id, command, response) >= 0) {
+            // Communication successful
+            if (strncmp(response, "SUCCESS", 7) == 0) {
+                // File created successfully!
+
+                // Add to trie
+                pthread_mutex_lock(&nm->trie_lock);
+                FileMetadata* metadata = (FileMetadata*)malloc(sizeof(FileMetadata));
+                strncpy(metadata->filename, filename, MAX_FILENAME - 1);
+                metadata->filename[MAX_FILENAME - 1] = '\0';
+                strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
+                metadata->owner[MAX_USERNAME - 1] = '\0';
+                metadata->ss_id = ss->id;
+                metadata->created_time = time(NULL);
+                metadata->last_modified = time(NULL);
+                metadata->last_accessed = time(NULL);
+                record_last_access(metadata, client->username);
+                strncpy(metadata->last_accessed_by, client->username, MAX_USERNAME - 1);
+                metadata->last_accessed_by[MAX_USERNAME - 1] = '\0';
+                metadata->file_size = 0;
+                metadata->word_count = 0;
+                metadata->char_count = 0;
+                metadata->acl = NULL;
+                metadata->pending_requests = NULL;
+
+                insert_file_trie(nm->file_trie, filename, metadata);
+                put_in_cache(nm->cache, filename, metadata);
+                pthread_mutex_unlock(&nm->trie_lock);
+
+                char details[256];
+                snprintf(details, sizeof(details), "File=%s SS_ID=%d", filename, ss->id);
+                log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                           "CREATE", details);
+
+                return ERR_SUCCESS;
+            } else {
+                // Server responded but failed (e.g. file exists?)
+                if (strstr(response, "exists")) {
+                    return ERR_FILE_EXISTS;
+                }
+                // Otherwise, try next server
+            }
+        }
+        // If forward_to_ss failed or server rejected, try the next candidate
+    }
+
     return ERR_SS_NOT_FOUND;
 }
 

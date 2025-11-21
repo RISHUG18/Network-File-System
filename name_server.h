@@ -149,6 +149,7 @@ typedef struct NameServer {
     Client* clients[MAX_CLIENTS];
     int ss_count;
     int client_count;
+    int next_ss_index;
     
     // Cache
     LRUCache* cache;

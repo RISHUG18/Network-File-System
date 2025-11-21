@@ -16,7 +16,7 @@ The Name Server implements several key components:
 ### 2. **Storage Server Management**
 - Maintains registry of all connected storage servers
 - Tracks server status (active/inactive)
-- Load balances file creation across available servers
+- Round-robin load balances new file creation across available servers so each request uses the next active SS
 - Handles server disconnections gracefully
 
 ### 3. **Client Management**

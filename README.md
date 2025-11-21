@@ -14,7 +14,7 @@ A distributed, collaborative document system similar to Google Docs, built for t
 The central coordinator of the system is fully implemented with all required features:
 
 - **Efficient File Lookup**: Trie-based search (O(m) complexity) with LRU caching
-- **Storage Server Management**: Registration, tracking, and health monitoring
+- **Storage Server Management**: Registration, tracking, health monitoring, and round-robin load balancing for new files
 - **Client Management**: User sessions with username-based authentication
 - **Access Control**: Owner-based permissions with ACL support (READ/WRITE)
 - **File Operations**: VIEW, CREATE, DELETE, READ, WRITE, INFO, STREAM, EXEC, UNDO
