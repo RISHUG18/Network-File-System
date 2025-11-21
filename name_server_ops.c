@@ -34,6 +34,50 @@ static AccessRequest* find_access_request(FileMetadata* metadata, const char* us
 
 // ==================== FILE OPERATION HANDLERS ====================
 
+typedef struct {
+    char* buffer;
+    int* offset;
+    bool show_all;
+    bool detailed;
+    Client* client;
+} ViewFilesContext;
+
+static void collect_files(TrieNode* node, char* prefix, int depth, ViewFilesContext* ctx) {
+    if (!node) return;
+    
+    if (node->is_end_of_word && node->file_metadata) {
+        FileMetadata* metadata = (FileMetadata*)node->file_metadata;
+        AccessRight access = check_access(metadata, ctx->client->username);
+        
+        if (ctx->show_all || access != ACCESS_NONE) {
+            if (ctx->detailed) {
+                char time_buf[64];
+                strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", 
+                        localtime(&metadata->last_accessed));
+                *ctx->offset += snprintf(ctx->buffer + *ctx->offset, BUFFER_SIZE * 4 - *ctx->offset,
+                                 "%s %10zu %5d %5d %s %s\n",
+                                 metadata->owner[0] ? metadata->owner : "none",
+                                 metadata->file_size,
+                                 metadata->word_count,
+                                 metadata->char_count,
+                                 time_buf,
+                                 metadata->filename);
+            } else {
+                *ctx->offset += snprintf(ctx->buffer + *ctx->offset, BUFFER_SIZE * 4 - *ctx->offset,
+                                 "%s\n", metadata->filename);
+            }
+        }
+    }
+    
+    for (int i = 0; i < 256; i++) {
+        if (node->children[i]) {
+            prefix[depth] = (char)i;
+            prefix[depth + 1] = '\0';
+            collect_files(node->children[i], prefix, depth + 1, ctx);
+        }
+    }
+}
+
 ErrorCode handle_view_files(NameServer* nm, Client* client, const char* flags, char* response) {
     bool show_all = (flags && strstr(flags, "a") != NULL);
     bool detailed = (flags && strstr(flags, "l") != NULL);
@@ -43,42 +87,7 @@ ErrorCode handle_view_files(NameServer* nm, Client* client, const char* flags, c
     
     pthread_mutex_lock(&nm->trie_lock);
     
-    // Helper function to traverse trie and collect files
-    void collect_files(TrieNode* node, char* prefix, int depth) {
-        if (!node) return;
-        
-        if (node->is_end_of_word && node->file_metadata) {
-            FileMetadata* metadata = (FileMetadata*)node->file_metadata;
-            AccessRight access = check_access(metadata, client->username);
-            
-            if (show_all || access != ACCESS_NONE) {
-                if (detailed) {
-                    char time_buf[64];
-                    strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", 
-                            localtime(&metadata->last_accessed));
-                    offset += snprintf(buffer + offset, sizeof(buffer) - offset,
-                                     "%s %10zu %5d %5d %s %s\n",
-                                     metadata->owner[0] ? metadata->owner : "none",
-                                     metadata->file_size,
-                                     metadata->word_count,
-                                     metadata->char_count,
-                                     time_buf,
-                                     metadata->filename);
-                } else {
-                    offset += snprintf(buffer + offset, sizeof(buffer) - offset,
-                                     "%s\n", metadata->filename);
-                }
-            }
-        }
-        
-        for (int i = 0; i < 256; i++) {
-            if (node->children[i]) {
-                prefix[depth] = (char)i;
-                prefix[depth + 1] = '\0';
-                collect_files(node->children[i], prefix, depth + 1);
-            }
-        }
-    }
+    ViewFilesContext ctx = { buffer, &offset, show_all, detailed, client };
     
     char prefix[MAX_FILENAME] = {0};
     if (detailed) {
@@ -89,7 +98,7 @@ ErrorCode handle_view_files(NameServer* nm, Client* client, const char* flags, c
                          "------------------------------------------------------------\n");
     }
     
-    collect_files(nm->file_trie, prefix, 0);
+    collect_files(nm->file_trie, prefix, 0, &ctx);
     
     pthread_mutex_unlock(&nm->trie_lock);
     
@@ -1156,8 +1165,81 @@ ErrorCode handle_create_folder(NameServer* nm, Client* client, const char* folde
         return ERR_FILE_EXISTS;
     }
 
-    // Choose an active storage server (round-robin) to host this folder and
-    // request the storage server to create the directory on disk.
+    // Check if this is a subfolder (e.g. "parent/child")
+    // If so, we should try to place it on the same SS as the parent.
+    char parent_folder[MAX_FILENAME] = {0};
+    FileMetadata* parent_meta = NULL;
+    const char* last_slash = strrchr(foldername, '/');
+    if (last_slash) {
+        size_t plen = (size_t)(last_slash - foldername);
+        if (plen > 0 && plen < sizeof(parent_folder)) {
+            strncpy(parent_folder, foldername, plen);
+            parent_folder[plen] = '\0';
+            pthread_mutex_lock(&nm->trie_lock);
+            parent_meta = search_file_trie(nm->file_trie, parent_folder);
+            pthread_mutex_unlock(&nm->trie_lock);
+        }
+        
+        if (!parent_meta) {
+            return ERR_PARENT_NOT_FOUND;
+        }
+        if (!parent_meta->is_directory) {
+            return ERR_INVALID_OPERATION;
+        }
+    }
+
+    // If parent exists, try its SS first.
+    if (parent_meta && parent_meta->is_directory) {
+        StorageServer* ss = get_storage_server(nm, parent_meta->ss_id);
+        if (ss && ss->is_active) {
+            char command[BUFFER_SIZE];
+            snprintf(command, sizeof(command), "CREATE_FOLDER %s", foldername);
+            char response[BUFFER_SIZE];
+
+            if (forward_to_ss(nm, ss->id, command, response) >= 0) {
+                if (strncmp(response, "SUCCESS", 7) == 0) {
+                    // Success on parent's SS
+                    pthread_mutex_lock(&nm->trie_lock);
+                    // Double check
+                    if (search_file_trie(nm->file_trie, foldername)) {
+                        pthread_mutex_unlock(&nm->trie_lock);
+                        return ERR_FILE_EXISTS;
+                    }
+
+                    FileMetadata* metadata = (FileMetadata*)calloc(1, sizeof(FileMetadata));
+                    strncpy(metadata->filename, foldername, MAX_FILENAME - 1);
+                    metadata->filename[MAX_FILENAME - 1] = '\0';
+                    strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
+                    metadata->owner[MAX_USERNAME - 1] = '\0';
+                    metadata->is_directory = true;
+                    metadata->ss_id = ss->id;
+                    metadata->created_time = time(NULL);
+                    metadata->last_modified = time(NULL);
+                    metadata->last_accessed = time(NULL);
+                    record_last_access(metadata, client->username);
+
+                    insert_file_trie(nm->file_trie, foldername, metadata);
+                    pthread_mutex_unlock(&nm->trie_lock);
+
+                    char details[256];
+                    snprintf(details, sizeof(details), "Folder=%s SS_ID=%d (Parent)", foldername, ss->id);
+                    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                               "CREATE_FOLDER", details);
+
+                    return ERR_SUCCESS;
+                } else if (strstr(response, "exists")) {
+                    return ERR_FILE_EXISTS;
+                }
+            }
+            // If failed on parent SS, we could fall back to round-robin or fail.
+            // Usually for subfolders we want them co-located.
+            // But if parent SS is down or fails, maybe we shouldn't split the folder tree?
+            // Let's fail if parent SS cannot handle it, to keep locality.
+            return ERR_SS_DISCONNECTED;
+        }
+    }
+
+    // Otherwise (top-level folder or parent not found/applicable), use round-robin
     pthread_mutex_lock(&nm->ss_lock);
     if (nm->ss_count == 0) {
         pthread_mutex_unlock(&nm->ss_lock);
@@ -1318,6 +1400,39 @@ ErrorCode handle_move_file(NameServer* nm, Client* client, const char* source, c
     return ERR_SUCCESS;
 }
 
+typedef struct {
+    char* buffer;
+    int* offset;
+    const char* base_folder;
+} ViewFolderContext;
+
+static void collect_folder_contents(TrieNode* node, char* prefix, int depth, ViewFolderContext* ctx) {
+    if (!node) return;
+    
+    if (node->is_end_of_word && node->file_metadata) {
+        FileMetadata* meta = (FileMetadata*)node->file_metadata;
+        size_t base_len = strlen(ctx->base_folder);
+        if (strncmp(meta->filename, ctx->base_folder, base_len) == 0) {
+            const char* relative = meta->filename + base_len;
+            if (*relative == '/') relative++;
+            
+            if (strchr(relative, '/') == NULL && strlen(relative) > 0) {
+                // Direct child
+                *ctx->offset += snprintf(ctx->buffer + *ctx->offset, BUFFER_SIZE * 4 - *ctx->offset,
+                                 "%s%s\n", meta->filename, meta->is_directory ? "/" : "");
+            }
+        }
+    }
+    
+    for (int i = 0; i < 256; i++) {
+        if (node->children[i]) {
+            prefix[depth] = (char)i;
+            prefix[depth + 1] = '\0';
+            collect_folder_contents(node->children[i], prefix, depth + 1, ctx);
+        }
+    }
+}
+
 ErrorCode handle_view_folder(NameServer* nm, Client* client, const char* foldername, char* response) {
     pthread_mutex_lock(&nm->trie_lock);
     
@@ -1340,35 +1455,10 @@ ErrorCode handle_view_folder(NameServer* nm, Client* client, const char* foldern
     char buffer[BUFFER_SIZE * 4] = {0};
     int offset = 0;
     
-    void collect_folder_contents(TrieNode* node, char* prefix, int depth, const char* base_folder) {
-        if (!node) return;
-        
-        if (node->is_end_of_word && node->file_metadata) {
-            FileMetadata* meta = (FileMetadata*)node->file_metadata;
-            size_t base_len = strlen(base_folder);
-            if (strncmp(meta->filename, base_folder, base_len) == 0) {
-                const char* relative = meta->filename + base_len;
-                if (*relative == '/') relative++;
-                
-                if (strchr(relative, '/') == NULL && strlen(relative) > 0) {
-                    // Direct child
-                    offset += snprintf(buffer + offset, sizeof(buffer) - offset,
-                                     "%s%s\n", meta->filename, meta->is_directory ? "/" : "");
-                }
-            }
-        }
-        
-        for (int i = 0; i < 256; i++) {
-            if (node->children[i]) {
-                prefix[depth] = (char)i;
-                prefix[depth + 1] = '\0';
-                collect_folder_contents(node->children[i], prefix, depth + 1, base_folder);
-            }
-        }
-    }
+    ViewFolderContext ctx = { buffer, &offset, foldername };
     
     char prefix[MAX_FILENAME] = {0};
-    collect_folder_contents(current, prefix, 0, foldername);
+    collect_folder_contents(current, prefix, 0, &ctx);
     
     pthread_mutex_unlock(&nm->trie_lock);
     

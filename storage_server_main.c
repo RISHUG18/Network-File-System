@@ -118,6 +118,17 @@ void* handle_nm_connection(void* arg) {
             }
             send_response(ss->nm_socket_fd, response);
         }
+        else if (strcmp(cmd, "CREATE_FOLDER") == 0 && arg_count >= 1) {
+            ErrorCode err = create_folder(ss, args[0]);
+            if (err == ERR_SUCCESS) {
+                strcpy(response, "SUCCESS\n");
+            } else if (err == ERR_FILE_EXISTS) {
+                strcpy(response, "ERROR:Folder already exists\n");
+            } else {
+                snprintf(response, sizeof(response), "ERROR:%s\n", error_to_string(err));
+            }
+            send_response(ss->nm_socket_fd, response);
+        }
         else if (strcmp(cmd, "DELETE") == 0 && arg_count >= 1) {
             ErrorCode err = delete_file(ss, args[0]);
             if (err == ERR_SUCCESS) {

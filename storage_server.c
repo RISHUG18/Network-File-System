@@ -1134,6 +1134,42 @@ FileEntry* create_file(StorageServer* ss, const char* filename) {
     return file;
 }
 
+ErrorCode create_folder(StorageServer* ss, const char* foldername) {
+    char full_path[MAX_PATH];
+    snprintf(full_path, sizeof(full_path), "%s/%s", STORAGE_DIR, foldername);
+
+    // Check if it already exists
+    struct stat st;
+    if (stat(full_path, &st) == 0) {
+        if (S_ISDIR(st.st_mode)) {
+            return ERR_FILE_EXISTS; // Or success? NM handles logic.
+        } else {
+            return ERR_FILE_EXISTS; // It's a file
+        }
+    }
+
+    // Create directory recursively
+    char path_copy[MAX_PATH];
+    strncpy(path_copy, full_path, MAX_PATH);
+    char* p = NULL;
+    for (p = path_copy + 1; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(path_copy, 0700);
+            *p = '/';
+        }
+    }
+    if (mkdir(full_path, 0700) != 0) {
+        return ERR_SYSTEM_ERROR;
+    }
+
+    char details[256];
+    snprintf(details, sizeof(details), "Folder=%s", foldername);
+    log_message(ss, "INFO", "CREATE_FOLDER", details);
+
+    return ERR_SUCCESS;
+}
+
 ErrorCode delete_file(StorageServer* ss, const char* filename) {
     pthread_mutex_lock(&ss->files_lock);
     

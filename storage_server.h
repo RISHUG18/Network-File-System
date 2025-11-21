@@ -136,6 +136,7 @@ void start_client_server(StorageServer* ss);
 
 // File operations
 FileEntry* create_file(StorageServer* ss, const char* filename);
+ErrorCode create_folder(StorageServer* ss, const char* foldername);
 FileEntry* find_file(StorageServer* ss, const char* filename);
 ErrorCode delete_file(StorageServer* ss, const char* filename);
 ErrorCode read_file(StorageServer* ss, const char* filename, char* content, size_t* size);
