@@ -121,6 +121,84 @@ ErrorCode handle_create_file(NameServer* nm, Client* client, const char* filenam
         return ERR_FILE_EXISTS;
     }
     
+    // If the file is inside a folder, and that folder exists, create it on
+    // the same storage server that hosts the folder (no round-robin).
+    char parent_folder[MAX_FILENAME] = {0};
+    FileMetadata* parent_meta = NULL;
+    const char* last_slash = strrchr(filename, '/');
+    if (last_slash) {
+        size_t plen = (size_t)(last_slash - filename);
+        if (plen > 0 && plen < sizeof(parent_folder)) {
+            strncpy(parent_folder, filename, plen);
+            parent_folder[plen] = '\0';
+            pthread_mutex_lock(&nm->trie_lock);
+            parent_meta = search_file_trie(nm->file_trie, parent_folder);
+            pthread_mutex_unlock(&nm->trie_lock);
+        }
+
+        if (!parent_meta) {
+            return ERR_PARENT_NOT_FOUND;
+        }
+        if (!parent_meta->is_directory) {
+            return ERR_INVALID_OPERATION;
+        }
+    }
+
+    if (parent_meta && parent_meta->is_directory) {
+        // Try to create file on the storage server that owns the folder
+        StorageServer* ss = get_storage_server(nm, parent_meta->ss_id);
+        if (!ss || !ss->is_active) {
+            return ERR_SS_NOT_FOUND;
+        }
+
+        char command[BUFFER_SIZE];
+        snprintf(command, sizeof(command), "CREATE %s", filename);
+        char response[BUFFER_SIZE];
+
+        if (forward_to_ss(nm, ss->id, command, response) >= 0) {
+            if (strncmp(response, "SUCCESS", 7) == 0) {
+                // Add to trie with the same ss_id as parent folder
+                pthread_mutex_lock(&nm->trie_lock);
+                FileMetadata* metadata = (FileMetadata*)malloc(sizeof(FileMetadata));
+                strncpy(metadata->filename, filename, MAX_FILENAME - 1);
+                metadata->filename[MAX_FILENAME - 1] = '\0';
+                strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
+                metadata->owner[MAX_USERNAME - 1] = '\0';
+                metadata->ss_id = ss->id;
+                metadata->created_time = time(NULL);
+                metadata->last_modified = time(NULL);
+                metadata->last_accessed = time(NULL);
+                record_last_access(metadata, client->username);
+                strncpy(metadata->last_accessed_by, client->username, MAX_USERNAME - 1);
+                metadata->last_accessed_by[MAX_USERNAME - 1] = '\0';
+                metadata->file_size = 0;
+                metadata->word_count = 0;
+                metadata->char_count = 0;
+                metadata->acl = NULL;
+                metadata->pending_requests = NULL;
+                metadata->is_directory = false;
+
+                insert_file_trie(nm->file_trie, filename, metadata);
+                put_in_cache(nm->cache, filename, metadata);
+                pthread_mutex_unlock(&nm->trie_lock);
+
+                char details[256];
+                snprintf(details, sizeof(details), "File=%s SS_ID=%d", filename, ss->id);
+                log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                           "CREATE", details);
+
+                return ERR_SUCCESS;
+            } else {
+                if (strstr(response, "exists")) {
+                    return ERR_FILE_EXISTS;
+                }
+                return ERR_SYSTEM_ERROR;
+            }
+        } else {
+            return ERR_SS_DISCONNECTED;
+        }
+    }
+
     // Find a storage server to create the file (try all active servers in round-robin order)
     pthread_mutex_lock(&nm->ss_lock);
     if (nm->ss_count == 0) {
@@ -1070,33 +1148,85 @@ void parse_command(const char* command, char* cmd, char* args[], int* arg_count)
 // ==================== FOLDER OPERATIONS ====================
 
 ErrorCode handle_create_folder(NameServer* nm, Client* client, const char* foldername) {
+    // Ensure folder does not already exist in trie
     pthread_mutex_lock(&nm->trie_lock);
     FileMetadata* existing = search_file_trie(nm->file_trie, foldername);
+    pthread_mutex_unlock(&nm->trie_lock);
     if (existing) {
-        pthread_mutex_unlock(&nm->trie_lock);
         return ERR_FILE_EXISTS;
     }
 
-    FileMetadata* metadata = (FileMetadata*)calloc(1, sizeof(FileMetadata));
-    strncpy(metadata->filename, foldername, MAX_FILENAME - 1);
-    metadata->filename[MAX_FILENAME - 1] = '\0';
-    strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
-    metadata->owner[MAX_USERNAME - 1] = '\0';
-    metadata->is_directory = true;
-    metadata->created_time = time(NULL);
-    metadata->last_modified = time(NULL);
-    metadata->last_accessed = time(NULL);
-    record_last_access(metadata, client->username);
-    
-    insert_file_trie(nm->file_trie, foldername, metadata);
-    pthread_mutex_unlock(&nm->trie_lock);
+    // Choose an active storage server (round-robin) to host this folder and
+    // request the storage server to create the directory on disk.
+    pthread_mutex_lock(&nm->ss_lock);
+    if (nm->ss_count == 0) {
+        pthread_mutex_unlock(&nm->ss_lock);
+        return ERR_SS_NOT_FOUND;
+    }
+    int total_servers = nm->ss_count;
+    int start_index = nm->next_ss_index % total_servers;
+    pthread_mutex_unlock(&nm->ss_lock);
 
-    char details[256];
-    snprintf(details, sizeof(details), "Folder=%s", foldername);
-    log_message(nm, "INFO", client->ip, client->nm_port, client->username,
-               "CREATE_FOLDER", details);
+    for (int attempt = 0; attempt < total_servers; attempt++) {
+        int idx = (start_index + attempt) % total_servers;
 
-    return ERR_SUCCESS;
+        pthread_mutex_lock(&nm->ss_lock);
+        StorageServer* ss = (idx < nm->ss_count) ? nm->storage_servers[idx] : NULL;
+        if (!ss || !ss->is_active) {
+            pthread_mutex_unlock(&nm->ss_lock);
+            continue;
+        }
+        int rr_mod = nm->ss_count > 0 ? nm->ss_count : 1;
+        nm->next_ss_index = (idx + 1) % rr_mod;
+        pthread_mutex_unlock(&nm->ss_lock);
+
+        char command[BUFFER_SIZE];
+        snprintf(command, sizeof(command), "CREATE_FOLDER %s", foldername);
+        char response[BUFFER_SIZE];
+
+        if (forward_to_ss(nm, ss->id, command, response) >= 0) {
+            if (strncmp(response, "SUCCESS", 7) == 0) {
+                // Insert folder metadata pointing to this storage server
+                pthread_mutex_lock(&nm->trie_lock);
+                // Double-check not inserted meanwhile
+                FileMetadata* double_check = search_file_trie(nm->file_trie, foldername);
+                if (double_check) {
+                    pthread_mutex_unlock(&nm->trie_lock);
+                    return ERR_FILE_EXISTS;
+                }
+
+                FileMetadata* metadata = (FileMetadata*)calloc(1, sizeof(FileMetadata));
+                strncpy(metadata->filename, foldername, MAX_FILENAME - 1);
+                metadata->filename[MAX_FILENAME - 1] = '\0';
+                strncpy(metadata->owner, client->username, MAX_USERNAME - 1);
+                metadata->owner[MAX_USERNAME - 1] = '\0';
+                metadata->is_directory = true;
+                metadata->ss_id = ss->id;
+                metadata->created_time = time(NULL);
+                metadata->last_modified = time(NULL);
+                metadata->last_accessed = time(NULL);
+                record_last_access(metadata, client->username);
+
+                insert_file_trie(nm->file_trie, foldername, metadata);
+                pthread_mutex_unlock(&nm->trie_lock);
+
+                char details[256];
+                snprintf(details, sizeof(details), "Folder=%s SS_ID=%d", foldername, ss->id);
+                log_message(nm, "INFO", client->ip, client->nm_port, client->username,
+                           "CREATE_FOLDER", details);
+
+                return ERR_SUCCESS;
+            } else {
+                if (strstr(response, "exists")) {
+                    return ERR_FILE_EXISTS;
+                }
+                // otherwise try next server
+            }
+        }
+        // forward_to_ss failed (deregister happened) -> try next
+    }
+
+    return ERR_SS_NOT_FOUND;
 }
 
 ErrorCode handle_move_file(NameServer* nm, Client* client, const char* source, const char* destination) {

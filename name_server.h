@@ -40,6 +40,7 @@ typedef enum {
     ERR_SS_DISCONNECTED = 8,
     ERR_PERMISSION_DENIED = 9,
     ERR_INVALID_SENTENCE = 10,
+    ERR_PARENT_NOT_FOUND = 11,
     ERR_SYSTEM_ERROR = 99
 } ErrorCode;
 

@@ -20,6 +20,7 @@ const char* error_to_string(ErrorCode error) {
         case ERR_SS_DISCONNECTED: return "Storage server disconnected";
         case ERR_PERMISSION_DENIED: return "Permission denied";
         case ERR_INVALID_SENTENCE: return "Invalid sentence number";
+        case ERR_PARENT_NOT_FOUND: return "Parent folder not found";
         case ERR_SYSTEM_ERROR: return "System error";
         default: return "Unknown error";
     }

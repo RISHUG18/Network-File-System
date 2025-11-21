@@ -198,72 +198,99 @@ void cmd_stream_file(Client* client, const char* filename) {
     bool done = false;
     bool first_token = true;
 
+    bool interrupted = false;
+    int last_err = 0;
+
     while (!done) {
         ssize_t bytes = recv(ss_socket, buffer, sizeof(buffer), 0);
-        if (bytes <= 0) {
-            break;  // Connection closed or error
-        }
 
-        saw_data = true;
+        if (bytes > 0) {
+            saw_data = true;
 
-        if (pending_len + (size_t)bytes >= sizeof(pending)) {
-            pending_len = 0;  // Prevent overflow by dropping stale partial data
-        }
-
-        memcpy(pending + pending_len, buffer, (size_t)bytes);
-        pending_len += (size_t)bytes;
-
-        size_t processed = 0;
-        while (processed < pending_len) {
-            char* newline = memchr(pending + processed, '\n', pending_len - processed);
-            if (!newline) {
-                break;  // Need more data for a complete line
+            if (pending_len + (size_t)bytes >= sizeof(pending)) {
+                pending_len = 0;  // Prevent overflow by dropping stale partial data
             }
 
-            size_t line_len = (size_t)(newline - (pending + processed));
-            char line[BUFFER_SIZE];
-            if (line_len >= sizeof(line)) {
-                line_len = sizeof(line) - 1;
-            }
-            memcpy(line, pending + processed, line_len);
-            line[line_len] = '\0';
+            memcpy(pending + pending_len, buffer, (size_t)bytes);
+            pending_len += (size_t)bytes;
 
-            if (processed == 0 && strncmp(line, "ERROR:", 6) == 0) {
-                printf("✗ %s\n", line + 6);
-                done = true;
-                break;
-            }
-
-            if (strcmp(line, "STOP") == 0) {
-                done = true;
-                break;
-            }
-
-            if (line_len > 0) {
-                if (!first_token) {
-                    printf(" ");
+            size_t processed = 0;
+            while (processed < pending_len) {
+                char* newline = memchr(pending + processed, '\n', pending_len - processed);
+                if (!newline) {
+                    break;  // Need more data for a complete line
                 }
 
-                printf("%s", line);
-                fflush(stdout);
-                first_token = false;
+                size_t line_len = (size_t)(newline - (pending + processed));
+                char line[BUFFER_SIZE];
+                if (line_len >= sizeof(line)) {
+                    line_len = sizeof(line) - 1;
+                }
+                memcpy(line, pending + processed, line_len);
+                line[line_len] = '\0';
+
+                if (processed == 0 && strncmp(line, "ERROR:", 6) == 0) {
+                    printf("✗ %s\n", line + 6);
+                    done = true;
+                    break;
+                }
+
+                if (strcmp(line, "STOP") == 0) {
+                    done = true;
+                    break;
+                }
+
+                if (line_len > 0) {
+                    if (!first_token) {
+                        printf(" ");
+                    }
+
+                    printf("%s", line);
+                    fflush(stdout);
+                    first_token = false;
+                }
+
+                processed = (size_t)(newline - pending) + 1;
             }
 
-            processed = (size_t)(newline - pending) + 1;
+            if (processed > 0) {
+                memmove(pending, pending + processed, pending_len - processed);
+                pending_len -= processed;
+            }
+
+            continue;
         }
 
-        if (processed > 0) {
-            memmove(pending, pending + processed, pending_len - processed);
-            pending_len -= processed;
+        // bytes <= 0 -> connection closed or error
+        if (bytes == 0) {
+            // orderly shutdown by peer
+            interrupted = true;
+            break;
+        } else {
+            if (errno == EINTR) {
+                // Interrupted by signal, retry
+                continue;
+            }
+            interrupted = true;
+            last_err = errno;
+            break;
         }
     }
 
     if (!done) {
         if (saw_data) {
             if (!first_token) printf("\n");
-            printf("✗ Stream interrupted: Storage Server closed connection unexpectedly\n");
+            if (last_err != 0) {
+                printf("✗ Stream interrupted: Storage Server closed connection unexpectedly (%s)\n", strerror(last_err));
+            } else {
+                printf("✗ Stream interrupted: Storage Server closed connection unexpectedly\n");
+            }
         } else {
-            printf("✗ No data received\n");
+            if (last_err != 0) {
+                printf("✗ No data received (error: %s)\n", strerror(last_err));
+            } else {
+                printf("✗ No data received\n");
+            }
         }
     } else {
         if (!first_token) {
