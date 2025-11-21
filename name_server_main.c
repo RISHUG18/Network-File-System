@@ -1,5 +1,7 @@
 #include "name_server.h"
 #include <signal.h>
+#include <poll.h>
+#include <errno.h>
 
 // Global name server for signal handling
 extern NameServer* g_nm;
@@ -78,29 +80,38 @@ void* handle_connection(void* arg) {
         char response[256];
         snprintf(response, sizeof(response), "SS registered with ID %d", ss_id);
         send_response(socket_fd, ERR_SUCCESS, response);
-        
-        // Keep connection open for SS
-        // The SS will keep sending updates and we'll keep the socket open
-        
+
         for (int i = 0; i < arg_count; i++) {
             free(args[i]);
         }
-        
-        // Monitor connection for disconnection
+        for (int i = 0; i < file_count; i++) {
+            free(files[i]);
+        }
+        free(files);
+
+        // Monitor the socket for disconnect events without consuming SS replies.
+        struct pollfd pfd;
+        pfd.fd = socket_fd;
+        pfd.events = POLLERR | POLLHUP;
+
         while (nm->is_running) {
-            char hb_buffer[BUFFER_SIZE];
-            int hb_bytes = recv(socket_fd, hb_buffer, BUFFER_SIZE - 1, 0);
-            
-            if (hb_bytes <= 0) {
-                // Connection closed or error
+            int ret = poll(&pfd, 1, 1000);
+            if (ret < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                deregister_storage_server_safe(nm, ss_id, socket_fd);
+                break;
+            } else if (ret == 0) {
+                continue;
+            }
+
+            if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
                 deregister_storage_server_safe(nm, ss_id, socket_fd);
                 break;
             }
-            
-            // If we receive data, it might be a heartbeat or update
-            // For now, just ignore
         }
-        
+
         return NULL;
     }
     else if (strcmp(cmd, "REGISTER_CLIENT") == 0) {
