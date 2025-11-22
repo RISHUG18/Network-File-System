@@ -198,7 +198,6 @@ void cmd_stream_file(Client* client, const char* filename) {
     bool done = false;
     bool first_token = true;
 
-    bool interrupted = false;
     int last_err = 0;
 
     while (!done) {
@@ -264,14 +263,12 @@ void cmd_stream_file(Client* client, const char* filename) {
         // bytes <= 0 -> connection closed or error
         if (bytes == 0) {
             // orderly shutdown by peer
-            interrupted = true;
             break;
         } else {
             if (errno == EINTR) {
                 // Interrupted by signal, retry
                 continue;
             }
-            interrupted = true;
             last_err = errno;
             break;
         }
