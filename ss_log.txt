@@ -1,0 +1,19 @@
+[2025-11-22 10:49:22] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-22 10:49:22] [INFO] Op=REGISTER_NM Details=SS registered with ID 0
+[2025-11-22 10:49:22] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-22 10:49:33] [INFO] Op=CREATE Details=File=new
+[2025-11-22 10:49:42] [INFO] Op=WRITE Details=File=new Sentence=0 Word=0
+[2025-11-22 10:49:52] [INFO] Op=WRITE Details=File=new Sentence=0 Word=4
+[2025-11-22 10:50:15] [INFO] Op=WRITE Details=File=new Sentence=0 Word=4
+[2025-11-22 10:50:17] [INFO] Op=COMMIT Details=File=new Sentence=0
+[2025-11-22 10:50:25] [INFO] Op=WRITE Details=File=new Sentence=0 Word=2
+[2025-11-22 10:50:32] [INFO] Op=COMMIT Details=File=new Sentence=0
+[2025-11-22 10:52:25] [INFO] Op=INIT Details=Storage Server initialized
+[2025-11-22 10:52:25] [INFO] Op=REGISTER_NM Details=SS registered with ID 1
+[2025-11-22 10:52:25] [INFO] Op=CLIENT_SERVER_START Details=Listening for client connections
+[2025-11-22 10:52:43] [INFO] Op=CREATE Details=File=temp
+[2025-11-22 10:52:46] [INFO] Op=CREATE Details=File=sjdb
+[2025-11-22 10:52:49] [INFO] Op=CREATE Details=File=dsbfld
+[2025-11-22 10:53:06] [INFO] Op=CREATE_FOLDER Details=Folder=hell
+[2025-11-22 10:53:15] [INFO] Op=CREATE Details=File=hell/new
+[2025-11-22 10:53:43] [INFO] Op=DELETE Details=File=hell/new

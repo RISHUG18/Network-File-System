@@ -48,10 +48,6 @@ void log_message(NameServer* nm, const char* level, const char* client_ip,
     pthread_mutex_unlock(&nm->log_lock);
 }
 
-void log_error(NameServer* nm, ErrorCode error, const char* details) {
-    log_message(nm, "ERROR", NULL, 0, NULL, error_to_string(error), details);
-}
-
 // Persistence helpers (forward declarations)
 static void free_acl_list(AccessEntry* head);
 static void free_access_requests(AccessRequest* head);
@@ -186,24 +182,6 @@ void move_to_front(LRUCache* cache, CacheEntry* entry) {
     if (cache->head) cache->head->prev = entry;
     cache->head = entry;
     if (!cache->tail) cache->tail = entry;
-}
-
-FileMetadata* get_from_cache(LRUCache* cache, const char* filename) {
-    pthread_mutex_lock(&cache->lock);
-    
-    CacheEntry* current = cache->head;
-    while (current) {
-        if (strcmp(current->filename, filename) == 0) {
-            move_to_front(cache, current);
-            current->timestamp = time(NULL);
-            pthread_mutex_unlock(&cache->lock);
-            return current->metadata;
-        }
-        current = current->next;
-    }
-    
-    pthread_mutex_unlock(&cache->lock);
-    return NULL;
 }
 
 void put_in_cache(LRUCache* cache, const char* filename, FileMetadata* metadata) {
@@ -580,25 +558,6 @@ int register_storage_server(NameServer* nm, const char* ip, int nm_port,
 StorageServer* get_storage_server(NameServer* nm, int ss_id) {
     if (ss_id < 0 || ss_id >= MAX_SS) return NULL;
     return nm->storage_servers[ss_id];
-}
-
-StorageServer* find_ss_for_file(NameServer* nm, const char* filename) {
-    // First check cache
-    FileMetadata* metadata = get_from_cache(nm->cache, filename);
-    if (!metadata) {
-        // Search in trie
-        pthread_mutex_lock(&nm->trie_lock);
-        metadata = search_file_trie(nm->file_trie, filename);
-        pthread_mutex_unlock(&nm->trie_lock);
-        
-        if (metadata) {
-            put_in_cache(nm->cache, filename, metadata);
-        }
-    }
-    
-    if (!metadata) return NULL;
-    
-    return get_storage_server(nm, metadata->ss_id);
 }
 
 void deregister_storage_server_safe(NameServer* nm, int ss_id, int socket_fd) {

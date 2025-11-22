@@ -115,26 +115,6 @@ bool is_sentence_delimiter(char c) {
     return (c == '.' || c == '!' || c == '?');
 }
 
-int count_words(const char* text) {
-    if (!text || strlen(text) == 0) return 0;
-    
-    int count = 0;
-    bool in_word = false;
-    
-    for (int i = 0; text[i] != '\0'; i++) {
-        if (text[i] == ' ' || text[i] == '\t' || text[i] == '\n') {
-            in_word = false;
-        } else {
-            if (!in_word) {
-                count++;
-                in_word = true;
-            }
-        }
-    }
-    
-    return count;
-}
-
 // ==================== SENTENCE NODE OPERATIONS (LINKED LIST) ====================
 
 SentenceNode* create_sentence_node(const char** word_array, int word_count, char delimiter) {
@@ -272,42 +252,6 @@ void append_sentence(FileEntry* file, SentenceNode* node) {
     pthread_mutex_unlock(&file->structure_lock);
 }
 
-void insert_sentence_after(FileEntry* file, SentenceNode* prev, SentenceNode* new_node) {
-    if (!file || !new_node) return;
-    
-    pthread_mutex_lock(&file->structure_lock);
-    
-    if (!prev || !file->head) {
-        // Insert at beginning if prev is NULL
-        new_node->next = file->head;
-        new_node->prev = NULL;
-        
-        if (file->head) {
-            file->head->prev = new_node;
-        } else {
-            file->tail = new_node;
-        }
-        
-        file->head = new_node;
-    } else {
-        // Insert after prev
-        new_node->next = prev->next;
-        new_node->prev = prev;
-        
-        if (prev->next) {
-            prev->next->prev = new_node;
-        } else {
-            file->tail = new_node;
-        }
-        
-        prev->next = new_node;
-    }
-    
-    file->sentence_count++;
-    
-    pthread_mutex_unlock(&file->structure_lock);
-}
-
 void delete_sentence_node(FileEntry* file, SentenceNode* node) {
     if (!file || !node) return;
     
@@ -393,78 +337,6 @@ void clear_file_undo_history(FileEntry* file) {
 
     file->undo_head = NULL;
     file->undo_depth = 0;
-}
-
-// ==================== WORD OPERATIONS WITHIN SENTENCE ====================
-
-bool insert_word_in_sentence(SentenceNode* sentence, int index, const char* word) {
-    if (!sentence || !word || index < 0 || index > sentence->word_count) {
-        return false;
-    }
-    
-    // Expand capacity if needed
-    if (sentence->word_count >= sentence->word_capacity) {
-        int new_capacity = sentence->word_capacity * 2;
-        char** new_words = (char**)realloc(sentence->words, new_capacity * sizeof(char*));
-        if (!new_words) {
-            return false;
-        }
-        sentence->words = new_words;
-        sentence->word_capacity = new_capacity;
-    }
-    
-    // Shift words to the right
-    for (int i = sentence->word_count; i > index; i--) {
-        sentence->words[i] = sentence->words[i - 1];
-    }
-    
-    // Insert new word
-    sentence->words[index] = strdup(word);
-    if (!sentence->words[index]) {
-        // Shift back on failure
-        for (int i = index; i < sentence->word_count; i++) {
-            sentence->words[i] = sentence->words[i + 1];
-        }
-        return false;
-    }
-    
-    sentence->word_count++;
-    return true;
-}
-
-bool delete_word_in_sentence(SentenceNode* sentence, int index) {
-    if (!sentence || index < 0 || index >= sentence->word_count) {
-        return false;
-    }
-    
-    // Free the word
-    free(sentence->words[index]);
-    
-    // Shift words to the left
-    for (int i = index; i < sentence->word_count - 1; i++) {
-        sentence->words[i] = sentence->words[i + 1];
-    }
-    
-    sentence->word_count--;
-    sentence->words[sentence->word_count] = NULL;
-    
-    return true;
-}
-
-bool replace_word_in_sentence(SentenceNode* sentence, int index, const char* word) {
-    if (!sentence || !word || index < 0 || index >= sentence->word_count) {
-        return false;
-    }
-    
-    char* new_word = strdup(word);
-    if (!new_word) {
-        return false;
-    }
-    
-    free(sentence->words[index]);
-    sentence->words[index] = new_word;
-    
-    return true;
 }
 
 void parse_sentences(FileEntry* file, const char* content) {

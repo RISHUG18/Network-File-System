@@ -190,7 +190,6 @@ void destroy_trie(TrieNode* root);
 
 // Cache operations
 LRUCache* create_cache(int capacity);
-FileMetadata* get_from_cache(LRUCache* cache, const char* filename);
 void put_in_cache(LRUCache* cache, const char* filename, FileMetadata* metadata);
 void destroy_cache(LRUCache* cache);
 
@@ -198,7 +197,6 @@ void destroy_cache(LRUCache* cache);
 int register_storage_server(NameServer* nm, const char* ip, int nm_port, 
                             int client_port, char** files, int file_count, int socket_fd);
 StorageServer* get_storage_server(NameServer* nm, int ss_id);
-StorageServer* find_ss_for_file(NameServer* nm, const char* filename);
 void deregister_storage_server(NameServer* nm, int ss_id);
 void deregister_storage_server_safe(NameServer* nm, int ss_id, int socket_fd);
 
@@ -252,7 +250,6 @@ ErrorCode handle_list_users(NameServer* nm, char* response);
 void log_message(NameServer* nm, const char* level, const char* client_ip, 
                 int client_port, const char* username, const char* operation, 
                 const char* details);
-void log_error(NameServer* nm, ErrorCode error, const char* details);
 
 // Networking
 void* handle_connection(void* arg);
@@ -261,7 +258,6 @@ int forward_to_ss(NameServer* nm, int ss_id, const char* command, char* response
 
 // Utilities
 const char* error_to_string(ErrorCode error);
-char* format_file_info(FileMetadata* metadata, bool detailed);
 void parse_command(const char* command, char* cmd, char* args[], int* arg_count);
 
 #endif // NAME_SERVER_H

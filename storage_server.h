@@ -146,7 +146,6 @@ ErrorCode rename_file(StorageServer* ss, const char* old_filename, const char* n
 SentenceNode* create_sentence_node(const char** word_array, int word_count, char delimiter);
 SentenceNode* create_empty_sentence_node();
 void append_sentence(FileEntry* file, SentenceNode* node);
-void insert_sentence_after(FileEntry* file, SentenceNode* prev, SentenceNode* new_node);
 void delete_sentence_node(FileEntry* file, SentenceNode* node);
 SentenceNode* get_sentence_by_index(FileEntry* file, int index);
 void free_sentence_node(SentenceNode* node);
@@ -160,9 +159,6 @@ int count_words(const char* text);
 bool is_sentence_delimiter(char c);
 
 // Word operations within sentence
-bool insert_word_in_sentence(SentenceNode* sentence, int index, const char* word);
-bool delete_word_in_sentence(SentenceNode* sentence, int index);
-bool replace_word_in_sentence(SentenceNode* sentence, int index, const char* word);
 
 ErrorCode handle_undo(StorageServer* ss, const char* filename);
 
